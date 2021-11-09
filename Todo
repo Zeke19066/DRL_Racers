@@ -1,0 +1,23 @@
+Minor:
+    - probability update should be dynamic to ascending or descending protocols.
+
+
+
+
+
+Performance Tiers
+    - Knockout system where run will be terminated
+    at lap if performance is below threshold.
+
+Comprehensive Start-to-Finish
+    - The training regimen should be able to account for
+    all levels of agent proficiency.
+
+Ideas:
+    - The speed of learning is capped real-time to the underlying
+    game implementation. Therefore the max cycles/second isn't limited
+    to the ability of the NN script. Limit is set by intervals that allow
+    the previous action to play out so that it has tangibly impacted the
+    resulting reward.
+
+    
