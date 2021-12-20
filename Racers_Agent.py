@@ -1,6 +1,4 @@
 """
-@author: Viet Nguyen <nhviet1009@gmail.com>
-
 How it works:
 Everyone uses the same conv layers for feature extraction, and the split between agent and critic only happens in the last layer.
 The initialization weights look a little wonky as well, but it might just be more modern.
