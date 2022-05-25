@@ -1,0 +1,26 @@
+convert c++ into a python usable library. 
+Requirements:
+	- CMake
+	- Pybind11
+	- Visual Studio 16 2019
+
+In the 'source' folder:
+	- If it's there, delete the build folder. This will be holding the last project.
+	- modify/replace module.cpp in the module folder. This will turn into your shared library.
+	- while in the source folder, run cmd from the address bar. Rund the following commands in order:
+		mkdir build
+		cd build
+		cmake ..
+	-This will generate the new project folder for Visual Studio. In the build folder, run the .sln (solution) file
+	to enter the VS code environemnt. There, navigate to your module source file and compile it. 
+	- The completed .lib will be in the debug folder, and should run in python when imported.
+
+to quick test, run cmd in adress bar, then run python, and try using the import library command.
+
+you'll have to copy all the files from the debug folder into your working directory (Python) in order to import lib. (Maybe?)
+
+Let's work on figuring out how to add a custom name for the lib.
+
+========== Build: 2 succeeded, 0 failed, 0 up-to-date, 1 skipped ========== <This is good
+
+	

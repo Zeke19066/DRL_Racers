@@ -146,4 +146,4 @@ def main(mode):
 
 
 if __name__ == "__main__":
-    main("screen")
+    main("speed")

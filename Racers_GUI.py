@@ -9,6 +9,7 @@ import sys
 import os
 import time
 from datetime import datetime, timedelta
+import cv2
 from collections import deque
 from colour import Color
 from collections import deque
@@ -43,6 +44,7 @@ class CentralWidget(qtw.QWidget):
         self.connection = connection
         self.game_timer = time.time()
         self.master_data_width = 140
+        self.fast_mode = False
 
         self.title_font= qtg.QFont('Trebuchet MS', 30)
         self.metric_font = qtg.QFont('Trebuchet MS', 12)
@@ -77,86 +79,95 @@ class CentralWidget(qtw.QWidget):
         
 
         self.metrics_last = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] #initialize empty.
-        self.central_widget_layout = qtw.QGridLayout()
-        self.setLayout(self.central_widget_layout)
 
         #graph Prepp
         #plt.style.use('dark_background')  #after later style overwrites, this only makes the grid white vs grey.
 
+        ## Plot of Racetime
+        self.graph_racetime_que1 = deque(maxlen=self.master_data_width)
+        self.graph_racetime_que2 = deque(maxlen=self.master_data_width)
+        self.graph_racetime_que3 = deque(maxlen=self.master_data_width)
+        self.graph_racetime_que4 = deque(maxlen=self.master_data_width)
+        self.graph_racetime_lineque = deque(maxlen=self.master_data_width)
+        self.graph_racetime = RewardPlotWidget(self, plot_layers=3, graph_label='Race Time Avg: -',
+            label_1="Final Time", label_2="Avg(25)", label_3="Deviance Abort",
+            y_min=-5, y_max=300, left=0.045
+            )
+
+        ## Plot of Total Reward
         self.graph_treward_que1 = deque(maxlen=self.master_data_width)
-        self.graph_treward_que1.append(0)
         self.graph_treward_que2 = deque(maxlen=self.master_data_width)
-        self.graph_treward_que2.append(0)
         self.graph_treward_que3 = deque(maxlen=self.master_data_width)
-        self.graph_treward_que3.append(0)
         self.graph_treward_que4 = deque(maxlen=self.master_data_width)
-        self.graph_treward_que4.append(0)
-
         self.graph_treward_lineque = deque(maxlen=self.master_data_width)
-        self.graph_treward_lineque.append(0)
-
-        self.graph_treward = RewardPlotWidget(self, 
-            data_width=self.master_data_width, plot_layers=3, graph_label='Final Reward',
-            label_1="Final Reward", label_2="Avg(25)", label_3="Learning Session",
-            y_min=-5, y_max=1000, left=0.070
+        self.graph_treward = RewardPlotWidget(self, plot_layers=3, graph_label='Total Reward Avg: -',
+            label_1="Final Reward", label_2="Avg(25)", label_3="Save Abort",
+            y_min=-5, y_max=1000, left=0.07
             )
 
+        ## Plot of Avg Actor & Avg Critic Qmax
         self.graph_avg_qmax_que1 = deque(maxlen=self.master_data_width)
-        self.graph_avg_qmax_que1.append(0)
         self.graph_avg_qmax_que2 = deque(maxlen=self.master_data_width)
-        self.graph_avg_qmax_que2.append(0)
         self.graph_avg_qmax_que3 = deque(maxlen=self.master_data_width)
-        self.graph_avg_qmax_que3.append(0)
         self.graph_avg_qmax_que4 = deque(maxlen=self.master_data_width)
-        self.graph_avg_qmax_que4.append(0)
-        self.graph_avg_qmax = PlotWidget(self, 
-            data_width=self.master_data_width, plot_layers=2, graph_label='Avg Qmax',
-            label_1="Avg Qmax", label_2="Closing Qmax",
-            y_min=-5, y_max=500, left=0.070
+        self.graph_avg_qmax = PlotWidget(self,plot_layers=4, graph_label='Actor vs Critic Avg',
+            label_1="Agent Avg Qmax", label_2="Agent Closing Qmax", label_3="Critic Avg Qmax", label_4="Critic Closing Qmax",
+            y_min=-5, y_max=500, left=0.04
             )
-        
-        self.graph_action_que1 = deque(maxlen=5)
-        self.graph_action_que1.append(1)
-        self.graph_action_que2 = deque(maxlen=5)
-        self.graph_action_que2.append(1)
-        self.graph_action_que3 = deque(maxlen=5)
-        self.graph_action_que3.append(1)
-        self.graph_action_que4 = deque(maxlen=5)
-        self.graph_action_que4.append(1)
-        self.graph_action_que5 = deque(maxlen=5)
-        self.graph_action_que5.append(1)
-        self.graph_action = QuickBarWidget(self,minimum=-150, maximum=250)
 
+        ## Plot Failrate of moveset
+        self.graph_action_failrate_que1 = deque(maxlen=self.master_data_width)
+        self.graph_action_failrate_que2 = deque(maxlen=self.master_data_width)
+        self.graph_action_failrate_que3 = deque(maxlen=self.master_data_width)
+        self.graph_action_failrate_que4 = deque(maxlen=self.master_data_width)
+        self.graph_action_failrate = PlotWidget(self,plot_layers=4, graph_label='Action Failrate',
+            label_1="Forward", label_2="Left", label_3="Right", label_4="Power-Up",
+            y_min=-5, y_max=5, left=0.04
+            )
+
+        ## Quickplot of the Actionspace
+        num_bars = 5
+        self.graph_action_que1 = deque(maxlen=num_bars)
+        self.graph_action_que2 = deque(maxlen=num_bars)
+        self.graph_action_que3 = deque(maxlen=num_bars)
+        self.graph_action_que4 = deque(maxlen=num_bars)
+        self.graph_action_que5 = deque(maxlen=num_bars)
+        self.graph_action = QuickBarWidget(self,num_bars=num_bars)
+
+        ## Quickplot of the Agent vs Critic vs Reward
         self.graph_actor_critic_que_1 = deque(maxlen=60)
-        self.graph_actor_critic_que_1.append(1)
         self.graph_actor_critic_que_2 = deque(maxlen=60)
-        self.graph_actor_critic_que_2.append(1)
         self.graph_actor_critic_que_3 = deque(maxlen=60)
-        self.graph_actor_critic_que_3.append(1)
         self.graph_actor_critic = QuickCurveWidget(self,minimum=-50, maximum=250)
 
-        self.total_reward_graph = self.graph_treward
-        self.action_graph = self.graph_action
-        self.actor_critic_graph = self.graph_actor_critic
+        ## Quickplot of the Current Dataset Frame. Used here as a dummy frame for the active game window.
+        self.image_graph = QuickImageWidget(self)
 
+        ## Now populate all of the widgets in the main window.
+        self.central_widget_layout = qtw.QGridLayout()
+        self.setLayout(self.central_widget_layout)
+        self.central_widget_layout.setRowStretch(1, 2) #row, stretch factor. for vertical space per row.
+        self.central_widget_layout.setRowStretch(2, 2) #row, stretch factor. for vertical space per row.
+        self.central_widget_layout.setRowStretch(3, 2)
 
-        """
-        self.qmax_graph = GraphWidget(self, data_width=60, minimum=-50, maximum=350, 
-        warn_val=100, crit_val=0, scale=10) #no idea why it has to be initialized here, but she do.
-        """
+        self.central_widget_layout.addWidget(self.title_module(), 0, 0, 1, 18) #(row, column, hight, width)
+        self.central_widget_layout.addWidget(self.img_module(self.image_graph), 1, 0, 2, 5) #the image is a frame for the gamewindow
 
-        self.central_widget_layout.addWidget(self.title_module(), 0, 0, 1, 6) #(row, column, hight, width)
-        self.central_widget_layout.addWidget(self.action_module(), 1, 0, 4, 2)
-        self.central_widget_layout.addWidget(self.metrics_module(), 1, 2, 4, 4)
+        self.central_widget_layout.addWidget(self.action_module(), 1, 5, 1, 2)
+        self.central_widget_layout.addWidget(self.bar_module(self.graph_action), 1, 7, 1, 2)
+        self.central_widget_layout.addWidget(self.metrics_module(), 1, 9, 1, 9)
         
-        #self.central_widget_layout.addWidget(self.evo_module(), 3, 2, 2, 4)
-        self.central_widget_layout.addWidget(self.plot_module(self.graph_avg_qmax), 7, 2, 4, 4)
-        #self.central_widget_layout.addWidget(self.graph_module(self.qmax_graph, label='Qmax'), 7, 0, 4, 2)
-        self.central_widget_layout.addWidget(self.curve_module(self.actor_critic_graph), 7, 0, 4, 2)
-        self.central_widget_layout.addWidget(self.bar_module(self.action_graph),13, 0, 6, 2)
-        self.central_widget_layout.addWidget(self.plot_module(self.total_reward_graph),13, 2, 6, 4)
+        self.central_widget_layout.addWidget(self.curve_module(self.graph_actor_critic), 2, 5, 1, 4)
+        self.central_widget_layout.addWidget(self.plot_module(self.graph_treward), 2, 9, 1, 9)
 
-        self.central_widget_layout.addWidget(self.new_button("quit_button"), 19, 2, 1, 1)
+        self.central_widget_layout.addWidget(self.plot_module(self.graph_avg_qmax), 3, 0, 1, 9)
+        #self.central_widget_layout.addWidget(self.plot_module(self.graph_racetime),3, 9, 1, 9)
+        self.central_widget_layout.addWidget(self.plot_module(self.graph_action_failrate),3, 9, 1, 9)
+
+        self.central_widget_layout.addWidget(self.new_button("quit_button"), 4, 6, 1, 2)
+        self.central_widget_layout.addWidget(self.new_button("fast_button"), 4, 8, 1, 2)
+        self.button_click(mode="fast_button")
+
 
         self.timer = qtc.QTimer()
         self.timer.setInterval(1)
@@ -201,22 +212,21 @@ class CentralWidget(qtw.QWidget):
         self.last_move = qtw.QLabel(f' Action: -', self)
         self.last_move.setFont(self.metric_font)
         self.last_move.setStyleSheet(metric_style)
-        self.reward_scan = qtw.QLabel(f' Reward Scan: -', self)
+        self.reward_scan = qtw.QLabel(f' Reward Scan: -/-', self)
         self.reward_scan.setFont(self.metric_font)
         self.reward_scan.setStyleSheet(metric_style)
-        self.critic_value = qtw.QLabel(f' Mistake Tolerance: -', self)
+        self.critic_value = qtw.QLabel(f' Actor/Critic Value: -/-', self)
         self.critic_value.setFont(self.metric_font)
         self.critic_value.setStyleSheet(metric_style)
-        self.performance_trend = qtw.QLabel(f' Performance Trend: -', self)
-        self.performance_trend.setFont(self.metric_font)
-        self.performance_trend.setStyleSheet(metric_style)
-        self.total_reward = qtw.QLabel(f' Total Reward: -', self)
-        self.total_reward.setFont(self.metric_font)
-        self.total_reward.setStyleSheet(metric_style)
-        self.last_reset = qtw.QLabel(f' Subcycle: -', self)
+        self.fail_rate = qtw.QLabel(f' Fail Rate: -', self)
+        self.fail_rate.setFont(self.metric_font)
+        self.fail_rate.setStyleSheet(metric_style)
+        self.lap_metrics = qtw.QLabel(f' Lap: -/-', self)
+        self.lap_metrics.setFont(self.metric_font)
+        self.lap_metrics.setStyleSheet(metric_style)
+        self.last_reset = qtw.QLabel(f' Subcycle/Seconds: -/-', self)
         self.last_reset.setFont(self.metric_font)
         self.last_reset.setStyleSheet(metric_style)
-
 
         self.current_cycle = qtw.QLabel(f' Current Cycle: -', self)
         self.current_cycle.setFont(self.metric_font)
@@ -224,34 +234,34 @@ class CentralWidget(qtw.QWidget):
         self.cycles_per_second = qtw.QLabel(f' Cycles/Second: -', self)
         self.cycles_per_second.setFont(self.metric_font)
         self.cycles_per_second.setStyleSheet(metric_style)
-        self.avg_qmax = qtw.QLabel(f' Avg Qmax: -', self)
+        self.avg_qmax = qtw.QLabel(f' Actor/Critic Avg Qmax: -/-', self)
         self.avg_qmax.setFont(self.metric_font)
         self.avg_qmax.setStyleSheet(metric_style)
-        self.avg_cycles = qtw.QLabel(f' Avg Cycles: -/game', self)
-        self.avg_cycles.setFont(self.metric_font)
-        self.avg_cycles.setStyleSheet(metric_style)
-        self.game_time = qtw.QLabel(f' Game Time: -', self)
-        self.game_time.setFont(self.metric_font)
-        self.game_time.setStyleSheet(metric_style)
-        self.ai_time = qtw.QLabel(f' Time: -', self)
+        self.performance_trend = qtw.QLabel(f' Time Trend: -', self)
+        self.performance_trend.setFont(self.metric_font)
+        self.performance_trend.setStyleSheet(metric_style)
+        self.ai_time = qtw.QLabel(f' Time: -/-', self)
         self.ai_time.setFont(self.metric_font)
         self.ai_time.setStyleSheet(metric_style)
+        self.deviance = qtw.QLabel(f' Reward/Second: -/-', self)
+        self.deviance.setFont(self.metric_font)
+        self.deviance.setStyleSheet(metric_style)
         
 
         metrics_grid = qtw.QGridLayout()
         metrics_grid.addWidget(self.last_move,1,0,1,1)
         metrics_grid.addWidget(self.reward_scan,2,0,1,2)
-        metrics_grid.addWidget(self.performance_trend,3,0,1,1)
-        metrics_grid.addWidget(self.critic_value,4,0,1,1)
-        metrics_grid.addWidget(self.last_reset,5,0,1,1)
-        metrics_grid.addWidget(self.total_reward,6,0,1,1)
+        metrics_grid.addWidget(self.critic_value,3,0,1,1)
+        metrics_grid.addWidget(self.fail_rate,4,0,1,1)
+        metrics_grid.addWidget(self.lap_metrics,5,0,1,1)
+        metrics_grid.addWidget(self.last_reset,6,0,1,1)
 
         metrics_grid.addWidget(self.current_cycle,1,1,1,1)
         metrics_grid.addWidget(self.cycles_per_second,2,1,1,1)
-        metrics_grid.addWidget(self.avg_cycles,3,1,1,1)
-        metrics_grid.addWidget(self.avg_qmax,4,1,1,1)
-        metrics_grid.addWidget(self.game_time,5,1,1,1)
-        metrics_grid.addWidget(self.ai_time,6,1,1,1)
+        metrics_grid.addWidget(self.avg_qmax,3,1,1,1)
+        metrics_grid.addWidget(self.performance_trend,4,1,1,1)
+        metrics_grid.addWidget(self.ai_time,5,1,1,1)
+        metrics_grid.addWidget(self.deviance,6,1,1,1)
 
         metrics_groupbox = qtw.QGroupBox()
         metrics_groupbox.setLayout(metrics_grid)
@@ -312,11 +322,8 @@ class CentralWidget(qtw.QWidget):
         return evo_groupbox
         
     def update_gui(self):
-
         self.metrics = []
-        color_set = [1, 1, 1, 1, 1] # All 5 actions start grey, or off state.
         #begin_time =time.time()
-
         try:
             if self.connection.poll(timeout=0.1):
                 #print('********************Recieved Connection********************')
@@ -328,97 +335,122 @@ class CentralWidget(qtw.QWidget):
 
             #Update Metrics:
             action =  self.metrics[0]
-
-            self.subtitlebar.setText(f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}      Target Avg: {self.metrics[9]}')
-    
-            self.reward_scan.setText(f' Reward Scan: {self.metrics[1]}')
-            self.total_reward.setText(f' Total Reward: {self.metrics[3]}')
-            self.critic_value.setText(f' Critic Value: {self.metrics[11]}')
-            self.last_reset.setText(f' Subcycle: {self.metrics[4]}')
-            self.avg_cycles.setText(f' Avg Subcycles: {self.metrics[5]}')
-            self.current_cycle.setText(f' Current Cycle: {self.metrics[6]}/{self.metrics[20]}/{int(self.metrics[20]%self.metrics[18])}')
-            self.ai_time.setText(f' Time: {str(timedelta(seconds=self.metrics[7]))}')
-            self.game_time.setText(f' Game Time: {str(timedelta(seconds=self.metrics[15]))}')
-            self.performance_trend.setText(f' Performance Trend: {self.metrics[10]}')
+            #this calculates percentages from the other two items in the original entry.
+            move_tracker_items = {0:0, 1:0, 2:0, 3:0, 4:0}
+            for i in range(5):
+                #calculate resulting %
+                move_tracker_items[i]= str(round(self.metrics[25][i][0]/self.metrics[25][i][1]*100,2))#+"%"
+                
+            fail_rate = round(self.metrics[9][1]/sum(self.metrics[9])*100,2) #[positive count, negative count]
+            self.subtitlebar.setText(f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}')
+            #devaince(self.metrics[24]) = [current_total_rewards/current_total_time, avg_total_rewards/avg_total_time, deviance_limit]
+            
+            self.last_move.setText(f' Action: {self.action_set[action]}')
+            self.reward_scan.setText(f' Reward Scan: {self.metrics[1]}/{self.metrics[3]}')
+            self.deviance.setText(f' Reward/Second: {self.metrics[24][0]}/{self.metrics[24][1]}/{round(self.metrics[24][0]-self.metrics[24][1],2)} delta') #reward/timeseconds
+            self.critic_value.setText(f' Actor/Critic Value: {self.metrics[8]}/{self.metrics[11]}')
+            self.last_reset.setText(f' Subcycle/Seconds: {self.metrics[4]}/{round(self.metrics[17],1)}')
+            self.fail_rate.setText(f' Fail Rate: {fail_rate}%')
+            self.current_cycle.setText(f' Current Cycle: {self.metrics[6]}/{self.metrics[20]}')
+            self.ai_time.setText(f' Time: {str(timedelta(seconds=self.metrics[7]))}/{str(timedelta(seconds=self.metrics[15]))}')
+            self.lap_metrics.setText(f' Lap: {self.metrics[23][0]}/{round(self.metrics[23][1],1)}')
+            self.performance_trend.setText(f' Time Trend: {self.metrics[10]}/{self.metrics[19]}')
             self.cycles_per_second.setText(f' Cycles/Second: {self.metrics[12]}')
-            self.avg_qmax.setText(f' Avg Qmax: {self.metrics[13]}')
+            self.avg_qmax.setText(f' Actor/Critic Avg Qmax: {self.metrics[13]}/{self.metrics_last[16]}')
 
-            self.reward_scan.setStyleSheet(self.color_coder(1, zero=True)) #Color Code reward_scans
+            if not self.fast_mode:
+                self.reward_scan.setStyleSheet(self.color_coder(1, zero=True)) #Color Code reward_scans
 
-            #Update Graphs
+                #update per-frame graphs
+                action_arr = self.metrics[2][0] 
+                self.graph_action_que1.append(action_arr[0])
+                self.graph_action_que2.append(action_arr[1])
+                self.graph_action_que3.append(action_arr[2])
+                self.graph_action_que4.append(action_arr[3])
+                self.graph_action_que5.append(action_arr[4])
+                #blocky, but faster than creating a list container
+                self.graph_action.add_value(self.graph_action_que1,self.graph_action_que2,
+                    self.graph_action_que3,self.graph_action_que4,self.graph_action_que5)
+
+                self.graph_actor_critic_que_1.append(self.metrics[8])
+                self.graph_actor_critic_que_2.append(self.metrics[11])
+                self.graph_actor_critic_que_3.append(self.metrics[1]*10)
+
+                self.graph_actor_critic.add_value(self.graph_actor_critic_que_1, 
+                    self.graph_actor_critic_que_2, self.graph_actor_critic_que_3)
+                
+                #Actions
+                color_set = [1, 1, 1, 1, 1] # All 5 actions start grey, or off state.
+                color_set[action] = int(2)
+                #print(f'{action}  {color_set[action]}   2')
+                self.last_move.setStyleSheet(metric_style)
+
+                #action module color coding. Notice the +/- shifts along pixmap dict selection. 
+                up_pixmap = (int(color_set[0]) - 1)
+                self.up.setPixmap(self.pixmap_dict[up_pixmap])
+                down_pixmap = (int(color_set[2]) + 2)
+                self.down.setPixmap(self.pixmap_dict[down_pixmap])
+                left_pixmap = (int(color_set[3]) + 5)
+                self.left.setPixmap(self.pixmap_dict[left_pixmap])
+                right_pixmap = (int(color_set[4]) + 8)
+                self.right.setPixmap(self.pixmap_dict[right_pixmap])
+                circle_pixmap = (int(color_set[1]) + 11)
+                self.circle.setPixmap(self.pixmap_dict[circle_pixmap])
+
+            #Update per-game Graphs
             if (self.metrics[20] != self.metrics_last[20]) and (self.metrics[6] > self.metrics[18]): #Once per game
-                self.graph_treward_que1.append(self.metrics[16]) #performance
-                self.graph_treward_que2.append(self.metrics[10]) #avg
+                """## Racetime Update
+                self.graph_racetime_que1.append(self.metrics_last[17]) #race time
+                self.graph_racetime_que2.append(self.metrics[10]) #avg
+                if round(self.metrics_last[24][0]-self.metrics_last[24][1],2) > self.metrics_last[24][2] and self.metrics[20] > 5:#exceeded deviance limit
+                    self.graph_racetime_lineque.append(1)
+                else:
+                    self.graph_racetime_lineque.append(0)  
+                graph_racetime_label = f'Race Time Avg: ({self.metrics[10]})'
+                self.graph_racetime.add_value(self.graph_racetime_que1, self.graph_racetime_que2, 
+                                                self.graph_racetime_lineque, title= graph_racetime_label)
+                """
 
-                #if (self.metrics[20]-1)%self.metrics[18] == 0:
-                if self.metrics[21]:
+                ## Total Reward Update
+                self.graph_treward_que1.append(self.metrics_last[3]) #Final Reward
+                self.graph_treward_que2.append(self.metrics[21]) #avg
+                if self.metrics_last[3] <= self.metrics[21] and not self.metrics[6]:#Reward was subaverage or we didnt finish
                     self.graph_treward_lineque.append(1)
                 else:
-                    self.graph_treward_lineque.append(0)  
-                self.total_reward_graph.add_value(self.graph_treward_que1, self.graph_treward_que2, self.graph_treward_lineque)
+                    self.graph_treward_lineque.append(0)
+                graph_treward_label = f'Total Reward Avg: ({self.metrics[21]})'
+                self.graph_treward.add_value(self.graph_treward_que1, self.graph_treward_que2, 
+                                                self.graph_treward_lineque, title = graph_treward_label)
 
+                ## Move Failrate Update
+                self.graph_action_failrate_que1.append(move_tracker_items[0]) #Forward
+                self.graph_action_failrate_que2.append(move_tracker_items[3]) #Left
+                self.graph_action_failrate_que3.append(move_tracker_items[4]) #Right
+                self.graph_action_failrate_que4.append(move_tracker_items[1]) #Powerup
+                graph_action_failrate_label = f'Action Failrate {move_tracker_items}'
+                self.graph_action_failrate.add_value(self.graph_action_failrate_que1, self.graph_action_failrate_que2,
+                                                self.graph_action_failrate_que3, self.graph_action_failrate_que4,
+                                                title = graph_action_failrate_label)
+
+                ## Qmax/Critic Avg Update
                 self.graph_avg_qmax_que1.append(self.metrics_last[13]) #qmax avg
                 self.graph_avg_qmax_que2.append(self.metrics_last[8]) #qmax closing
-                self.graph_avg_qmax.add_value(self.graph_avg_qmax_que1, self.graph_avg_qmax_que2)
+                self.graph_avg_qmax_que3.append(self.metrics_last[16]) #critic avg
+                self.graph_avg_qmax_que4.append(self.metrics_last[11]) #critic closing
 
+                graph_avg_qmax_label = f'Actor({self.metrics_last[13]}) vs Critic({self.metrics_last[16]}) Avg'
+                self.graph_avg_qmax.add_value(self.graph_avg_qmax_que1, self.graph_avg_qmax_que2,
+                                                self.graph_avg_qmax_que3, self.graph_avg_qmax_que4, 
+                                                title = graph_avg_qmax_label)
 
-            action_arr = self.metrics[2][0] 
-
-            #for i, n in enumerate(action_arr):
-            #    if n == 0:
-            #        action_arr[i] = 1
-
-            self.graph_action_que1.append(action_arr[0])
-            self.graph_action_que2.append(action_arr[1])
-            self.graph_action_que3.append(action_arr[2])
-            self.graph_action_que4.append(action_arr[3])
-            self.graph_action_que5.append(action_arr[4])
-            #blocky, but faster than creating a list container
-            #self.action_graph.add_value(self.graph_action_que1,self.graph_action_que2,
-            #    self.graph_action_que3,self.graph_action_que4,self.graph_action_que5)
-
-            
-            self.graph_actor_critic_que_1.append(self.metrics[8])
-            self.graph_actor_critic_que_2.append(self.metrics[11])
-            self.graph_actor_critic_que_3.append(self.metrics[1]*10)
-
-            self.actor_critic_graph.add_value(self.graph_actor_critic_que_1, 
-                self.graph_actor_critic_que_2, self.graph_actor_critic_que_3)
-            
-
-            '''
-            #self.q_title.setText(f' QMax ({self.metrics[8]})')
-            #self.qmax_graph.add_value(self.metrics[8])
-
-            self.final_net_worth_trend.setText(f'<font style="rgb(255,255,10);">   Performance Trend: </font><font font style="{str(self.color_coder(9))}">{self.metrics[9]}</font>')
-            self.move_reward.setText(f'<font style="rgb(255,255,10);">   Box Radius: </font><font font style="{str(self.color_coder(10))}">{self.metrics[10]}</font>')
-            '''
-
-            #Actions
-            color_set[action] = int(2)
-            #print(f'{action}  {color_set[action]}   2')
-            self.last_move.setText(f' Action: {self.action_set[action]}')
-            self.last_move.setStyleSheet(metric_style)
-
-            up_pixmap = (int(color_set[0]) - 1)
-            self.up.setPixmap(self.pixmap_dict[up_pixmap])
-            down_pixmap = (int(color_set[2]) + 2)
-            self.down.setPixmap(self.pixmap_dict[down_pixmap])
-            left_pixmap = (int(color_set[3]) + 5)
-            self.left.setPixmap(self.pixmap_dict[left_pixmap])
-            right_pixmap = (int(color_set[4]) + 8)
-            self.right.setPixmap(self.pixmap_dict[right_pixmap])
-            circle_pixmap = (int(color_set[1]) + 11)
-            self.circle.setPixmap(self.pixmap_dict[circle_pixmap])
 
             self.metrics_last = self.metrics
             #print('********************COMPLETED UPDATE GUI********************')
         
         except Exception as e: 
             if str(e) != "'int' object has no attribute 'poll'" and str(e) != "list index out of range":
-                print(e)
-
-        
+                print("Receive Failure:",e)
+   
     def title_module(self):
         titlebox = qtw.QGroupBox()
         titlebox.setStyleSheet(box_style)
@@ -470,35 +502,41 @@ class CentralWidget(qtw.QWidget):
         curve_groupbox.setStyleSheet(box_style)
         return curve_groupbox
 
+    def img_module(self, img_plot):
+        img_groupbox = qtw.QGroupBox()
+        img_groupbox.setLayout(img_plot.plot_layout)
+        img_groupbox.setFont(self.custom_style2)
+        img_groupbox.setStyleSheet(box_style)
+        return img_groupbox
+
     def new_button(self, button_request):
-        if button_request == "update_button":
-            update_btn = qtw.QPushButton('Update', self)
-            update_btn.setFont(self.custom_style3)
-            update_btn.setStyleSheet("""
-            border-color: rgb(255,255,255);
-            color: rgb(255,255,255);
-            border-radius: 8px;
-            border-width : 4px;
-            border-style:outset;
-            """)
-            update_btn.clicked.connect(self.buttonClicked)
-            return update_btn
+        ##Create the button and assign function
+        if button_request == "fast_button":
+            self.fast_button = qtw.QPushButton("Fast Mode: Off", self)
+            self.fast_button.setFont(self.custom_style3)
+            self.fast_button.setStyleSheet(click_style_on)
+            self.fast_button.clicked.connect(lambda: self.button_click(button_request))
+            return self.fast_button
 
         elif button_request == "quit_button":
             qbtn = qtw.QPushButton('Quit', self)
             qbtn.setFont(self.custom_style3)
-            qbtn.setStyleSheet("""
-            border-color: rgb(255,255,255);
-            color: rgb(255,255,255);
-            border-radius: 8px;
-            border-width : 4px;
-            border-style:outset;
-            """)
+            qbtn.setStyleSheet(click_style_on)
             qbtn.clicked.connect(qtw.QApplication.instance().quit)
             return qbtn
 
-    def buttonClicked(self):
-        pass
+    def button_click(self, mode):
+        ##Execute Button Function
+        if mode == "fast_button":
+            #toggle fastmode
+            if self.fast_mode:
+                self.fast_mode = False
+                self.fast_button.setText("Fast Mode: Off")
+                self.fast_button.setStyleSheet(click_style_on)
+            elif not self.fast_mode:
+                self.fast_mode = True
+                self.fast_button.setText("Fast Mode: On")
+                self.fast_button.setStyleSheet(click_style_off)
 
     def color_coder(self, metrics_index, distribution=0, percent_max=0, zero=False): # distribution[yellow, orange, red, purple]
         # percent_max will represent 100%, and will trigger percentage mode if provided (0 is off)
@@ -655,7 +693,7 @@ class GraphWidget(qtw.QWidget):
 class PlotWidget(qtw.QWidget):
 
     def __init__(self, *args,
-                data_width, plot_layers, graph_label, 
+                plot_layers, graph_label, 
                 label_1, label_2='blank', label_3='blank', label_4='blank',
                 y_min, y_max, left,
                 **kwargs):
@@ -672,7 +710,6 @@ class PlotWidget(qtw.QWidget):
 
         #left=0.6, right=0.985, top=0.935, bottom=0.065 Defaults
         self.canvas = MplCanvas(self, width=1, height=1, dpi=180, left=left, right=0.98,top=0.9, bottom =0.095)
-        self.n_data = data_width
         self.xdata = []
         self.ydata1 = []
         self.ydata2 = []
@@ -682,18 +719,28 @@ class PlotWidget(qtw.QWidget):
         # Create toolbar, passing canvas as first parament, parent (self, the MainWindow) as second.
         toolbar = NavigationToolbar(self.canvas, self)
 
-        self.add_value([0],[0],[0],[0])
+        self.add_value([0],[0],[0],[0], self.graph_label)
         
         self.plot_layout = qtw.QVBoxLayout()
         #self.plot_layout.addWidget(toolbar)
         self.plot_layout.addWidget(self.canvas)
 
-    def add_value(self, input_1, input_2=[0], input_3=[0], input_4=[0]):
-        self.ydata1 = list(input_1)
-        self.ydata2 = list(input_2)
-        self.ydata3 = list(input_3)
-        self.ydata4 = list(input_4)
+    def add_value(self, input_1, input_2=[0], input_3=[0], input_4=[0], title=""):
+        self.ydata1 =[float(x) for x in input_1]
+        self.ydata2 =[float(x) for x in input_2]
+        self.ydata3 =[float(x) for x in input_3]
+        self.ydata4 =[float(x) for x in input_4]
+        if len(self.ydata1)==1:
+            self.ydata1.append(self.ydata1[0])
+            self.ydata2.append(self.ydata2[0])
+            self.ydata3.append(self.ydata3[0])
+            self.ydata4.append(self.ydata4[0])
+
         self.y_max = round(max( max(self.ydata1), max(self.ydata2), max(self.ydata3), max(self.ydata4) )*1.1) #adjust the limit, with a little space.
+        self.y_min = round(min( min(self.ydata1), min(self.ydata2), min(self.ydata3), min(self.ydata4) )*0.9) #adjust the limit, with a little space.
+        if int(self.y_max) == int(self.y_min):
+            self.y_max+=1
+            self.y_min-=1
         #self.xdata.reverse() #we need to do this for label reasons.
 
         '''
@@ -715,12 +762,12 @@ class PlotWidget(qtw.QWidget):
         axes = self.canvas.axes
         axes.cla() #clear axis.
         axes.set_facecolor((0.12, 0.12, 0.12))
-        axes.set_xlim([0, self.n_data]) #This overwrites the automatic x axis label range.
+        axes.set_xlim([0, len(self.ydata1)-1]) #This overwrites the automatic x axis label range.
         #axes.invert_xaxis() #since new values are appended at the end...
         axes.set_ylim([self.y_min, self.y_max]) #This overwrites the automatic y axis label range.
         axes.grid(True)
         axes.tick_params(labelcolor='white')
-        axes.set_title(self.graph_label, color=(1, 1, 1))
+        axes.set_title(title, color=(1, 1, 1)) #This is how to set title within module
         
         if self.plot_layers == 1:
             axes.plot(self.xdata, self.ydata1, color=(1, 0.4, 1), label=self.label_1)
@@ -747,12 +794,12 @@ class PlotWidget(qtw.QWidget):
             legend_PL = mpatches.Patch(color=(1, 0.4, 1), label=self.label_1)
             legend_PL_avg = mpatches.Patch(color=(0, 0.92, 0.83), label=self.label_2)
             legend_PL_StDev = mpatches.Patch(color=(0, 1, 0), label=self.label_3)
-            legend_Passive_target = mpatches.Patch(color=(0.8, 0.3, 0.3), label=self.label_4)
+            legend_Passive_target = mpatches.Patch(color=(0.90, 0.85, 0.48), label=self.label_4)
             axes.legend(handles=[legend_PL, legend_PL_avg, legend_PL_StDev, legend_Passive_target])
 
-            axes.plot(self.xdata, self.ydata4, color=(0.8, 0.3, 0.3))
-            axes.plot(self.xdata, self.ydata3, color=(0, 1, 0), linestyle='--')
-            axes.plot(self.xdata, self.ydata2, color=(0, 0.92, 0.83))
+            axes.plot(self.xdata, self.ydata4, color=(0.90, 0.85, 0.48), linestyle='--')
+            axes.plot(self.xdata, self.ydata3, color=(0, 1, 0))
+            axes.plot(self.xdata, self.ydata2, color=(0, 0.92, 0.83), linestyle='--')
             axes.plot(self.xdata, self.ydata1, color=(1, 0.4, 1)) #tuple is rgb val
 
         # Trigger the canvas to update and redraw.
@@ -762,7 +809,7 @@ class PlotWidget(qtw.QWidget):
 class RewardPlotWidget(qtw.QWidget):
 
     def __init__(self, *args,
-                data_width, plot_layers, graph_label, 
+                plot_layers, graph_label, 
                 label_1, label_2='blank', label_3='blank', label_4='blank',
                 y_min, y_max, left,
                 **kwargs):
@@ -777,8 +824,7 @@ class RewardPlotWidget(qtw.QWidget):
         self.y_min = y_min
         self.y_max = y_max
 
-        self.canvas = MplCanvas(self, width=1, height=1, dpi=180, left=left, right=0.98)
-        self.n_data = data_width
+        self.canvas = MplCanvas(self, width=1, height=1, dpi=180, left=left, right=0.98, top=0.92, bottom=0.07)
         self.xdata = []
         self.ydata1 = []
         self.ydata2 = []
@@ -787,19 +833,26 @@ class RewardPlotWidget(qtw.QWidget):
 
         # Create toolbar, passing canvas as first parament, parent (self, the MainWindow) as second.
         toolbar = NavigationToolbar(self.canvas, self)
-
-        self.add_value([0],[0],[0],[0])
+        self.add_value([0],[0],[0],[0], self.graph_label)
         
         self.plot_layout = qtw.QVBoxLayout()
         #self.plot_layout.addWidget(toolbar)
+
         self.plot_layout.addWidget(self.canvas)
 
-    def add_value(self, input_1, input_2='empty', input_3='empty', input_4='empty'):
-        self.ydata1 = list(input_1)
-        self.ydata2 = list(input_2)
-        self.y_max = round(max(self.ydata1)*1.1) #adjust the limit, with a little space.
-        self.y_min = round(min(self.ydata1)) #adjust the limit, with a little space.
+    def add_value(self, input_1, input_2='empty', input_3='empty', input_4='empty', title=""):
+        self.ydata1 =[float(x) for x in input_1]
+        self.ydata2 =[float(x) for x in input_2]
+        #need min of 2 values for function.
+        if len(self.ydata1)==1:
+            self.ydata1.append(self.ydata1[0])
+            self.ydata2.append(self.ydata2[0])
 
+        self.y_max = round(max(self.ydata1)*1.05) #adjust the limit, with a little space.
+        self.y_min = round(min(self.ydata1)*0.95) #adjust the limit, with a little space.
+        if int(self.y_max) == int(self.y_min):
+            self.y_max+=1
+            self.y_min-=1
 
         #this contains 1&0. We want lines where there are 1's.
         self.ydata3 = list(input_3)
@@ -809,7 +862,6 @@ class RewardPlotWidget(qtw.QWidget):
                 temp.append(index)
         self.ydata3 = temp
 
-
         self.ydata4 = list(input_4)
         self.xdata = list(range(len(self.ydata1))) #x axis will be a list of indexies equal to len(y_axis)
 
@@ -817,12 +869,12 @@ class RewardPlotWidget(qtw.QWidget):
         axes = self.canvas.axes
         axes.cla() #clear axis.
         axes.set_facecolor((0.12, 0.12, 0.12))
-        axes.set_xlim([0, self.n_data]) #This overwrites the automatic x axis label range.
+        axes.set_xlim([0, len(self.ydata1)-1]) #This overwrites the automatic x axis label range.
         #axes.invert_xaxis() #since new values are appended at the end...
         axes.set_ylim([self.y_min, self.y_max]) #This overwrites the automatic y axis label range.
         axes.grid(True)
         axes.tick_params(labelcolor='white')
-        axes.set_title(self.graph_label, color=(1, 1, 1))
+        axes.set_title(title, color=(1, 1, 1)) #This is how to set title within module
         
         if self.plot_layers == 1:
             axes.plot(self.xdata, self.ydata1, color=(1, 0.4, 1), label=self.label_1)
@@ -865,7 +917,7 @@ class RewardPlotWidget(qtw.QWidget):
 
 class QuickBarWidget(qtw.QWidget):
 
-    def __init__(self, *args, minimum=0, maximum=250, **kwargs):
+    def __init__(self, *args, num_bars=5, **kwargs):
         super().__init__(*args, **kwargs)
     
         self.win = pg.PlotWidget()
@@ -881,23 +933,36 @@ class QuickBarWidget(qtw.QWidget):
         self.sub_title.setFont(qtg.QFont('Trebuchet MS', 11))
         self.sub_title.setStyleSheet(metric_style)
         self.sub_title.setAlignment(qtc.Qt.AlignRight)
-        self.maximum, self.minimum = maximum, minimum
+        self.maximum = 0
 
         self.red = Color("red")
         self.lime = Color("lime")
-        self.gradient = list(self.red.range_to(self.lime, (self.maximum-self.minimum)))
+        self.gradient = list(self.red.range_to(self.lime, (255)))
 
-        data = [[10, 10, 10, 10, 10],
-        [50, 50, 50, 50, 50],
-        [100, 100, 100, 100, 100],
-        [180, 180, 180, 180, 180],
-        [250, 250, 250, 250, 250]]
+        data2 = [[-1],
+        [1],
+        [-1],
+        [1],
+        [-1]]
 
-        data1 = [[10, 20, 30, 40, 50],
-        [10, 20, 30, 40, 50],
-        [10, 20, 30, 40, 50],
-        [10, 20, 30, 40, 50],
-        [10, 20, 30, 40, 50]]
+        data3 = [[-1 for n in range(num_bars)],
+        [1 for n in range(num_bars)],
+        [-1 for n in range(num_bars)],
+        [1 for n in range(num_bars)],
+        [-1 for n in range(num_bars)]]
+
+        data = [[(np.random.randint(-99,99)/100) for n in range(num_bars)],
+        [(np.random.randint(-99,99)/100) for n in range(num_bars)],
+        [(np.random.randint(-99,99)/100) for n in range(num_bars)],
+        [(np.random.randint(-99,99)/100) for n in range(num_bars)],
+        [(np.random.randint(-99,99)/100) for n in range(num_bars)]]
+
+
+        self.num_bars = num_bars
+        #self.bar_line_list = np.array([0,4,8,12,16]) #spaced by 4
+        #self.bar_line_list = np.array([0,7,14,21,28]) #spaced by 7
+        #self.bar_line_list = np.array([0,1,2,3,4]) #spaced by 7 #Original Tuning, this version yields 5 bar+plots per move
+        self.bar_line_list = np.array([n for n in range(num_bars)]) #This will generate dynaic set.
 
         self.add_value(data[0], data[1], data[2], data[3], data[4])
         
@@ -909,34 +974,42 @@ class QuickBarWidget(qtw.QWidget):
         self.plot_layout.addWidget(self.win)
 
     def add_value(self, y1, y2, y3, y4, y5):
+        yset = [y1, y2, y3, y4, y5]
+        ##Catch condition for when the input array is shorter than the bar count per race
+        for sub_list in yset:
+            while len(sub_list) < self.num_bars:
+                #sub_list[:0] = [0] #append to the beggining of the list
+                sub_list.insert(0, 0) # second arg is number being inserted
 
-        #w = np.array([0,4,8,12,16]) #spaced by 4
-        #w = np.array([0,7,14,21,28]) #spaced by 7
-        w = np.array([0,1,2,3,4]) #spaced by 7
         averages = []
         color_adjust = [1, 0.9, 0.8, 0.7, 0.6]
         self.win.clear()
 
-        averages.append(int(np.mean(y1)))
-        averages.append(int(np.mean(y2)))
-        averages.append(int(np.mean(y3)))
-        averages.append(int(np.mean(y4)))
-        averages.append(int(np.mean(y5)))
-
+        averages.append(np.mean(yset[0]))
+        averages.append(np.mean(yset[1]))
+        averages.append(np.mean(yset[2]))
+        averages.append(np.mean(yset[3]))
+        averages.append(np.mean(yset[4]))
+        places = averages.copy()
 
         #Dynamic Maximum
-        self.maximum-=0.01 #decay the value to keep it dynamic.
+        self.maximum-=0.1 #decay the value to keep it dynamic.
         if max(averages) > self.maximum:
             self.maximum = max(averages)
-            self.gradient = list(self.red.range_to(self.lime, (self.maximum-self.minimum)))
-        if self.maximum%150==0:
-            self.gradient = list(self.red.range_to(self.lime, (self.maximum-self.minimum)))
 
-        
-        def color_generator(avg_val, place):
-            color = abs(avg_val) * color_adjust[place-1]
-            color = self.gradient[int(color)]
+        def color_generator(avg_val, place=None):
+            avg_norm = max(avg_val,0) #set zero floor.
+            avg_norm = np.interp(avg_norm,[0, self.maximum],[0,254]) #like c map function:(input val, [inrange_min,inrange_max],[outrange_min,outrange_max]
+            #avg_norm = avg_norm * color_adjust[place-1]
+            color = self.gradient[int(avg_norm)]
             color = [int(item*255) for item in color.rgb]
+            ## if value is negative, we darken
+            if avg_val<0:
+                dark_factor = np.interp(abs(avg_val),[0, self.maximum],[0,254]) #maps from one range to another
+                color[0] = max(color[0]-dark_factor,0) #cant be lower than 0
+                color[1] = max(color[1]-dark_factor,0)
+                color[2] = max(color[2]-dark_factor,0)
+ 
             return color
 
         def array_rank(inx):
@@ -961,23 +1034,31 @@ class QuickBarWidget(qtw.QWidget):
                 input_array[index] = ranks[input_array[index]]
             return input_array
 
-        places = array_rank(averages)
+        places = array_rank(places)
         y1_color = color_generator(averages[0],places[0])
         y2_color = color_generator(averages[1],places[1])
         y3_color = color_generator(averages[2],places[2])
         y4_color = color_generator(averages[3],places[3])
         y5_color = color_generator(averages[4],places[4])
-
         self.sub_title.setText(f"F({places[0]})    P({places[1]})     B({places[2]})     L({places[3]})      R({places[4]})    ")
 
-        base = len(w)
+        base = len(self.bar_line_list)
 
         #Note: the added constant determines the spacing between bar sub-graphs.
+        """ Original Calibration
         bg1 = pg.BarGraphItem(x=w,          height=y1, width=1, brush=y1_color)
         bg2 = pg.BarGraphItem(x=w+base+2,   height=y2, width=1, brush=y2_color)
         bg3 = pg.BarGraphItem(x=w+base*2+4, height=y3, width=1, brush=y3_color)
         bg4 = pg.BarGraphItem(x=w+base*3+6, height=y4, width=1, brush=y4_color)
         bg5 = pg.BarGraphItem(x=w+base*4+8, height=y5, width=1, brush=y5_color)
+        """
+
+        ##In this version we are trying to increase the plots per move from 5 to 10
+        bg1 = pg.BarGraphItem(x=self.bar_line_list,          height=yset[0], width=1, brush=y1_color)
+        bg2 = pg.BarGraphItem(x=self.bar_line_list+base+2,   height=yset[1], width=1, brush=y2_color)
+        bg3 = pg.BarGraphItem(x=self.bar_line_list+base*2+4, height=yset[2], width=1, brush=y3_color)
+        bg4 = pg.BarGraphItem(x=self.bar_line_list+base*3+6, height=yset[3], width=1, brush=y4_color)
+        bg5 = pg.BarGraphItem(x=self.bar_line_list+base*4+8, height=yset[4], width=1, brush=y5_color)
 
         self.win.addItem(bg1)
         self.win.addItem(bg2)
@@ -989,15 +1070,12 @@ class QuickBarWidget(qtw.QWidget):
         self.win.setBackground((48,48,48))
         self.win.hideAxis('bottom')
         
-
 class QuickCurveWidget(qtw.QWidget):
 
     def __init__(self, *args, minimum=0, maximum=250, **kwargs):
         super().__init__(*args, **kwargs)
     
-
         self.win = pg.PlotWidget()
-
 
         label = 'Actor vs Critic'
         self.title = qtw.QLabel(label, self)
@@ -1051,6 +1129,73 @@ class QuickCurveWidget(qtw.QWidget):
         self.win.setBackground((48,48,48))
         self.win.hideAxis('bottom')
 
+class QuickImageWidget(qtw.QWidget):
+
+    def __init__(self, *args, minimum=0, maximum=250, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        """
+        For speed reasons, we are given the dataset directory through the pipeline, and then load the dataset like the training
+        procror does. We tick through "frames" where the index=subcycle in the dataset.
+        """
+        self.home_dir = os.getcwd()
+        square_size= 1000
+
+        ## Create window with GraphicsView widget
+        self.win = pg.GraphicsLayoutWidget()
+        self.image_object = pg.ImageItem(border='w')
+       
+        label = '                        Game View'
+        self.title = qtw.QLabel(label, self)
+        self.title.setFont(qtg.QFont('Trebuchet MS', 16))
+        self.title.setStyleSheet(metric_style)
+        self.title.setAlignment(qtc.Qt.AlignBottom)
+
+        view = self.win.addViewBox()
+        view.setAspectLocked(True) # lock the aspect ratio so pixels are always square
+        view.addItem(self.image_object)
+        view.setRange(qtc.QRectF(0, 0, square_size, square_size)) ## Set initial view bounds
+        view.setGeometry(0, 0, square_size, square_size)
+        self.win.setBackground((40,44,52))
+
+        ##Load in the default image.
+        #starter_img = cv2.imread("Resources\screenshot_big.png", cv2.IMREAD_UNCHANGED) #cv2.IMREAD_GRAYSCALE
+        #self.frame_buffer = []
+        #self.frame_buffer.append(starter_img)
+        #self.tick_frame(0)
+
+        self.plot_layout = qtw.QVBoxLayout()
+        self.plot_layout.addWidget(self.win)
+        self.plot_layout.addWidget(self.title)
+
+    #This loads the dataset  
+    def change_dataset(self, directory):
+        #subfunction for natural sorting of file names.
+        import re
+        def natural_sorter(data):
+            convert = lambda text: int(text) if text.isdigit() else text.lower()
+            alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+            return sorted(data, key=alphanum_key)
+
+        #now we're in the folder loading the file list
+        os.chdir(self.home_dir)#home first
+        os.chdir("Dataset")
+        os.chdir(directory)
+        self.file_list = os.listdir()
+        self.file_list = natural_sorter(self.file_list)
+
+        #preload all the images:
+        self.frame_buffer = []
+        for file_name in self.file_list:
+            sub_frame = cv2.imread(file_name, cv2.IMREAD_UNCHANGED) #cv2.IMREAD_GRAYSCALE
+            self.frame_buffer.append(sub_frame)
+
+    #This updates the frame
+    def tick_frame(self, subcycle):
+        image = self.frame_buffer[subcycle]
+        image = np.flip(np.rot90(image))
+        self.image_object.setImage(image, autoLevels=None)
+
 class MplCanvas(FigureCanvas):
 
     def __init__(self, parent=None, width=1, height=4, dpi=100, left=0.6, right=0.985, top=0.935, bottom=0.065):
@@ -1065,11 +1210,12 @@ def map(x):
     return result
 
 def launchcode(self):      #the universal 'show' protocol 
-    self.setGeometry(1950, 70, 1880, 1980)
+    self.setGeometry(0, 0, 3840, 2160)
     #self.setGeometry(1950, 70, 1880, 1600)
     self.setStyleSheet("background-color: rgb(40,44,52);")
     self.setWindowTitle('DRL Monitor')
-    self.show()
+    #self.show()
+    self.showMaximized()
 
 def main(connection):
     #if mode == 'Main_Window':
@@ -1105,19 +1251,19 @@ QProgressBar::chunk {
 }
 """
 
-click_style_off = """
-border :3px solid black;
-border-color: rgb(33, 37, 43);
-color: rgb(33, 37, 43);
+click_style_off ="""
+border-color: rgb(255,255,255);
+color: rgb(80,167,239);
 border-radius: 8px;
-border-width: 4px;
+border-width : 4px;
+border-style:outset;
 """
 click_style_on = """
-border :3px solid black;
 border-color: rgb(255,255,255);
 color: rgb(255,255,255);
 border-radius: 8px;
-border-width: 4px;
+border-width : 4px;
+border-style:outset;
 """
 click_style_random = """
 border :3px solid black;

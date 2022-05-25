@@ -1,0 +1,4 @@
+#Files/Folders to ignore; must terminate in "/"
+
+pretrained_model/
+Dataset/
