@@ -5,8 +5,6 @@ The initialization weights look a little wonky as well, but it might just be mor
 
 This is called from train()
 
-
-
 "We can combine the actor and critic losses if we want using a discount factor to bring them 
 to the same order of magnitude. Adding an entropy term is optional, but it encourages our 
 actor model to explore different policies and the degree to which we want to experiment can be 
@@ -26,25 +24,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-#The PPO model structure
-class PPONetwork(nn.Module):
+#The A2C model structure
+class CNNActor(nn.Module):
 
-    def __init__(self, num_inputs, num_actions, alpha, file_name='pretrained_model/current_model_seed.pth'):
-        super(PPONetwork, self).__init__()
+    def __init__(self, num_inputs, num_actions, alpha, file_name='pretrained_model/current_model_actor.pth'):
+        super(CNNActor, self).__init__()
         
         self.checkpoint_file = file_name
-        self.number_of_actions = 5 # How many output acitons?
+        self.number_of_actions = num_actions # How many output acitons?
         self.flat_size = 9216
 
         self.conv1 = nn.Conv2d(4, 32, 8, 4) #in_channels, out_channels, kernel_size, stride, padding
-        #self.conv1.requires_grad = False
         self.conv2 = nn.Conv2d(32, 64, 4, 2)
-        #self.conv2.requires_grad = False
         self.conv3 = nn.Conv2d(64, 64, 3, 1)
-        #self.conv3.requires_grad = False
 
         self.linear = nn.Linear(self.flat_size, 512)
-        self.critic_linear = nn.Linear(512, 1)
         self.actor_linear = nn.Linear(512, num_actions)
         self.home_dir = os.getcwd()
 
@@ -72,14 +66,66 @@ class PPONetwork(nn.Module):
         out = F.relu(self.conv2(out))
         out = F.relu(self.conv3(out))
         out = self.linear(out.view(out.size(0), -1))
-        #print(f'Flattened Shape: {out.shape}') #This needs to be calculater as this image shape needs to feed into next layer.
-        return self.actor_linear(out), self.critic_linear(out)
+        #print(f'***Flattened Shape: {out.shape}***') #This needs to be calculater as this image shape needs to feed into next layer.
+        return self.actor_linear(out)
 
-    def save_checkpoint(self, file_name='pretrained_model/current_model_seed.pth'):
+    def save_checkpoint(self, file_name='pretrained_model/current_model_actor.pth'):
         os.chdir(self.home_dir) #make sure we're in the main folder
         T.save(self.state_dict(), file_name)
 
-    def load_checkpoint(self, file_name='pretrained_model/current_model_seed.pth'):
+    def load_checkpoint(self, file_name='pretrained_model/current_model_actor.pth'):
+        os.chdir(self.home_dir) #make sure we're in the main folder
+        self.load_state_dict(T.load(file_name)) #strict=False
+
+class CNNCritic(nn.Module):
+
+    def __init__(self, num_inputs, num_actions, alpha, file_name='pretrained_model/current_model_critic.pth'):
+        super(CNNCritic, self).__init__()
+        
+        self.checkpoint_file = file_name
+        self.flat_size = 9216
+
+        self.conv1 = nn.Conv2d(4, 32, 8, 4) #in_channels, out_channels, kernel_size, stride, padding
+        self.conv2 = nn.Conv2d(32, 64, 4, 2)
+        self.conv3 = nn.Conv2d(64, 64, 3, 1)
+
+        self.linear = nn.Linear(self.flat_size, 512)
+        self.critic_linear = nn.Linear(512, 1)
+
+        self.home_dir = os.getcwd()
+
+        file_exists = exists(self.checkpoint_file)
+        if file_exists:
+            self.load_checkpoint(self.checkpoint_file)
+        else:
+            self._initialize_weights()
+            self.save_checkpoint(self.checkpoint_file)
+
+        self.optimizer = optim.Adam(self.parameters(), alpha) # define Adam optimizer;
+        self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
+        self.to(self.device)
+
+    def _initialize_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, nn.init.calculate_gain('relu'))
+                # nn.init.xavier_uniform_(module.weight)
+                # nn.init.kaiming_uniform_(module.weight)
+                nn.init.constant_(module.bias, 0)
+
+    def forward(self, x):
+        out = F.relu(self.conv1(x))
+        out = F.relu(self.conv2(out))
+        out = F.relu(self.conv3(out))
+        out = self.linear(out.view(out.size(0), -1))
+        #print(f'***Flattened Shape: {out.shape}***') #This needs to be calculater as this image shape needs to feed into next layer.
+        return self.critic_linear(out)
+
+    def save_checkpoint(self, file_name='pretrained_model/current_model_critic.pth'):
+        os.chdir(self.home_dir) #make sure we're in the main folder
+        T.save(self.state_dict(), file_name)
+
+    def load_checkpoint(self, file_name='pretrained_model/current_model_critic.pth'):
         os.chdir(self.home_dir) #make sure we're in the main folder
         self.load_state_dict(T.load(file_name)) #strict=False
 
@@ -128,17 +174,18 @@ class PPOMemory:
 
 class NNMerge:
 
-    def __init__(self, parameters_dict):
+    def __init__(self, parameters_dict, num_actions):
         self.parameters_dict = parameters_dict
+        self.num_actions = num_actions
 
 
     def merge_models(self):
-        self.parent_1 = PPONetwork(4, 5, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent1.pth')
-        self.parent_2 = PPONetwork(4, 5, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent2.pth')
-        self.parent_3 = PPONetwork(4, 5, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent3.pth')
-        self.parent_4 = PPONetwork(4, 5, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent4.pth')
-        self.parent_5 = PPONetwork(4, 5, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent5.pth')
-        self.merge_output = PPONetwork(4, 5, self.parameters_dict["learning_rate"], file_name='pretrained_model/current_model_seed.pth')
+        self.parent_1 = PPONetwork(4, self.num_actions, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent1.pth')
+        self.parent_2 = PPONetwork(4, self.num_actions, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent2.pth')
+        self.parent_3 = PPONetwork(4, self.num_actions, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent3.pth')
+        self.parent_4 = PPONetwork(4, self.num_actions, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent4.pth')
+        self.parent_5 = PPONetwork(4, self.num_actions, self.parameters_dict["learning_rate"], file_name='pretrained_model/Merge_Folder/parent5.pth')
+        self.merge_output = PPONetwork(4, self.num_actions, self.parameters_dict["learning_rate"], file_name='pretrained_model/current_model_seed.pth')
     
         #convert tensors to numpy arrays
         np_parent_1 = self.model2numpy(self.parent_1)
@@ -222,7 +269,7 @@ class NNMerge:
         self.merge_output.save_checkpoint(file_name='pretrained_model/current_model_seed.pth')
 
 class Agent:
-    def __init__(self, parameters_dict):
+    def __init__(self, parameters_dict, num_actions):
 
         # gamma=0.99, alpha=0.0003, gae_lambda=0.95,
         #   policy_clip=0.2, batch_size=64, n_epochs=10
@@ -233,41 +280,46 @@ class Agent:
         self.gae_lambda = parameters_dict["tau"]
         self.beta = parameters_dict["beta"]
         self.parameters_dict = parameters_dict
-        self.critic_discount = 0.0225 #0.05, 0.1 #scale the critic values
-        self.critic_discount_targets = []
+        self.critic_discount = 0.01028 #0.0225, 0.05, 0.1 #scale the critic values
+        self.actor_loss_que = deque(maxlen=100)
+        self.critic_loss_que = deque(maxlen=100)
+        self.entropy_loss_que = deque(maxlen=100)
 
         self.initial_state_bool = True
         self.state_tensor = [] #initialize empty.
         self.state_array = []
-        self.complex_buffer = deque(maxlen=30) #we average 30 cycles/second;yields 1 second reference window to sample.
+        self.complex_buffer = deque(maxlen=30) #we average 60 cycles/second;yields 1 second reference window to sample.
 
-        self.model = PPONetwork(4, 5, parameters_dict["learning_rate"])
-        self.memory = PPOMemory(parameters_dict["batch_size"])
-        self.merge = NNMerge(parameters_dict) #For merging NN
+        self.actor_model= CNNActor(4, num_actions, parameters_dict["actor_learning_rate"])
+        self.critic_model= CNNCritic(4, num_actions, parameters_dict["critic_learning_rate"])
+        self.memory = PPOMemory(parameters_dict["mini_batch_size"])
+        self.merge = NNMerge(parameters_dict, num_actions) #For merging NN
        
     def remember(self, state, action, probs, vals, reward, done):
         self.memory.store_memory(state, action, probs, vals, reward, done)
 
-    def save_models(self, file_name='pretrained_model/current_model_seed.pth'):
+    def save_models(self):
         print('... saving model ...')
-        self.model.save_checkpoint(file_name)
+        self.actor_model.save_checkpoint()
+        self.critic_model.save_checkpoint()
 
-    def load_models(self, file_name='pretrained_model/current_model_seed.pth'):
+    def load_models(self):
         print('... loading model ...')
-        self.model.load_checkpoint(file_name)
+        self.actor_model.load_checkpoint()
+        self.critic_model.load_checkpoint()
 
     def merge_models(self):
         self.merge.merge_models()
 
     def choose_action(self, state):
         #state = T.tensor([observation], dtype=T.float).to(self.model.device)
-        state = T.tensor(state, dtype=T.float).to(self.model.device)
+        state = T.tensor(state, dtype=T.float).to(self.actor_model.device)
         state = state.squeeze(0)
         state = state.unsqueeze(0)
         #if T.cuda.is_available():  # put on GPU if CUDA is available
         #    state = state.cuda()
 
-        action_space, value = self.model(state)
+        action_space, value = self.actor_model(state), self.critic_model(state)
         actions_distribution = F.softmax(action_space, dim=1)
         actions_distribution = Categorical(actions_distribution)
 
@@ -306,7 +358,7 @@ class Agent:
         self.memory.rewards = array_adjust(self.memory.rewards, self.memory.batch_size)
         self.memory.dones = array_adjust(self.memory.dones, self.memory.batch_size)
 
-        for _ in range(self.n_epochs):
+        for epoch in range(self.n_epochs):
             state_arr, action_arr, old_prob_arr, vals_arr,\
             reward_arr, dones_arr, batches = \
                     self.memory.generate_batches()
@@ -322,16 +374,16 @@ class Agent:
                             (1-int(dones_arr[k])) - values[k])
                     discount *= self.gamma*self.gae_lambda
                 advantage[t] = a_t
-            advantage = T.tensor(advantage).to(self.model.device)
-            values = T.tensor(values).to(self.model.device)
+            advantage = T.tensor(advantage).to(self.actor_model.device)
+            values = T.tensor(values).to(self.critic_model.device)
 
             for batch in batches:
-                states = T.tensor(state_arr[batch], dtype=T.float).to(self.model.device)
+                states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor_model.device)
 
-                old_probs = T.tensor(old_prob_arr[batch]).to(self.model.device)
-                actions = T.tensor(action_arr[batch]).to(self.model.device)
+                old_probs = T.tensor(old_prob_arr[batch]).to(self.actor_model.device)
+                actions = T.tensor(action_arr[batch]).to(self.actor_model.device)
 
-                actions_distribution, critic_value = self.model(states)
+                actions_distribution, critic_value = self.actor_model(states), self.critic_model(states)
                 actions_distribution = F.softmax(actions_distribution, dim=1)
                 actions_distribution = Categorical(actions_distribution)
                 new_m = actions_distribution
@@ -343,48 +395,49 @@ class Agent:
                 weighted_probs = advantage[batch] * prob_ratio
                 weighted_clipped_probs = T.clamp(prob_ratio, 1-self.policy_clip,
                         1+self.policy_clip)*advantage[batch]
+                
+                ## Calculate the Actor Loss.
+                entropy_loss = T.mean(new_m.entropy())
+                entropy_loss = (self.beta * entropy_loss) #subtract this
                 actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean() #why negative?
+                actor_loss = actor_loss-entropy_loss #therefore +entropy == -loss
+
+                ## Calculate the Critic Loss.
                 returns = advantage[batch] + values[batch]
                 critic_loss = (returns-critic_value)**2 #using MSE mean squared error
                 critic_loss = critic_loss.mean()
 
-                entropy_loss = T.mean(new_m.entropy())
-                total_loss = actor_loss + self.critic_discount*critic_loss - (self.beta * entropy_loss)
+                ## Update the network; gradient descent
+                self.actor_model.optimizer.zero_grad()
+                actor_loss.backward(retain_graph=True)
+                self.critic_model.optimizer.zero_grad()
+                critic_loss.backward()
 
-                ## Calculate the critic scaling factor dynamically.
+                #performs gradient clipping. It is used to mitigate the problem of exploding gradients.
+                nn.utils.clip_grad_norm_(self.actor_model.parameters(), 0.5) 
+                nn.utils.clip_grad_norm_(self.critic_model.parameters(), 0.5)
+                
+                self.actor_model.optimizer.step()
+                self.critic_model.optimizer.step()
+
+                actor_loss = actor_loss+entropy_loss #take the entropy back out for better insight.
                 actor_loss = actor_loss.detach().cpu().numpy().astype('float32')
                 actor_loss = round(float(actor_loss),4)
                 critic_loss = critic_loss.detach().cpu().numpy().astype('float32')
                 critic_loss = round(float(critic_loss),4)
-                perfect_reduction = round(abs(actor_loss)/abs(critic_loss),4)
-                self.critic_discount_targets.append(perfect_reduction)
-                
-                """Troubleshooting
-                adjusted_critic = round(self.critic_discount*critic_loss,4)
-                adjusted_delta = round(abs(actor_loss)-abs(self.critic_discount*critic_loss),4)
-                print("Loss Check....", end="")
-                print(f"Actor:{actor_loss}; Critic:{critic_loss};", end = "")
-                print(f"Adjusted Critic:{adjusted_critic};Adjusted Delta:{adjusted_delta}", end = "")
-                print(f"Perfect Reduction = {actor_loss/critic_loss}")
-                """
-
-                self.model.optimizer.zero_grad()
-                total_loss.backward()
-                nn.utils.clip_grad_norm_(self.model.parameters(), 0.5) #performs gradient clipping. It is used to mitigate the problem of exploding gradients,
-                self.model.optimizer.step()
-
-                """
-                total_loss = actor_loss + 0.5*critic_loss
-                self.model.optimizer.zero_grad()
-                total_loss.backward()
-                self.model.optimizer.step()
-                """
-        ## Calculate the critic scaling dynamically.
-        self.critic_discount = np.mean(self.critic_discount_targets)
-        self.critic_discount_targets = []
-        #print(f"Final Critic Discount:{self.critic_discount}")
-
-        self.memory.clear_memory()               
+                entropy_loss = entropy_loss.detach().cpu().numpy().astype('float32')
+                entropy_loss = round(float(entropy_loss),4)
+                self.actor_loss_que.append(actor_loss)
+                self.critic_loss_que.append(critic_loss)
+                self.entropy_loss_que.append(entropy_loss)
+            print(f"...{epoch+1}/{self.n_epochs}", end="")
+        
+        print("...Epochs Complete")
+        print("Loss Check(Avg 100)...", end="")
+        print(f"Actor:{round(np.mean(self.actor_loss_que),4)}; ", end="")
+        print(f"Critic:{round(np.mean(self.critic_loss_que),4)}; ", end="")
+        print(f"Entropy:{round(np.mean(self.entropy_loss_que),4)}")
+        self.memory.clear_memory()          
 
     def image_to_tensor(self, image):
         #4 frames are staggered across time. 30cycles/second = 30 frame buffer of 1 second. We select frames 
@@ -401,7 +454,6 @@ class Agent:
         else:
             self.state_array = np.concatenate((self.complex_buffer[0], self.complex_buffer[15], 
                                                 self.complex_buffer[22], self.complex_buffer[29]), axis=0)
-            #self.state_array = np.concatenate((self.state_array[1:, :, :], image_tensor), axis=0)
         #"""
         return self.state_array 
 
@@ -416,10 +468,10 @@ if __name__ == "__main__":
         'epochs': 5, #how many times do you want to learn from the data
         'number_of_iterations': 20000000,
         'game_count_limit': 100, #how many games do we wish to run this for.
-        'batch_size': 200, #5 
+        'mini_batch_size': 200, #5 
         'num_local_steps': 800, #Used for dataset learning. total learning steps at learn time.
     }
 
     #merge = NNMerge(parameters) #give it the whole dict.
     #merge.merge_models()
-    agent = Agent(parameters)
+    agent = Agent(parameters, 10)

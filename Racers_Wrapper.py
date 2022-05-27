@@ -14,23 +14,21 @@ import keyboard  # For Keylogging
 import matplotlib.pyplot as plot
 
 '''
-This file handles the screenshot & image processing, and the Keystroke interactions with the Game-Interface.
+This file handles the screenshot & image processing, and the
+Keystroke interactions with the Game-Interface.
 
 Notes:
-The gamescreen offset is (52,104).
 self.action_set = [0'Forward', 1'Powerup', 2'Reverse', 3'Left', 4'Right']
+While smaller game window leads to faster image processing, smaller than 873x925 does
+not yield further performance and reduces human readability.
 
 '''
 
-# Where screencaptures are executed (20fps speed)
-#800x600 old
+# Screencapture & pixel analysis methods
 class ScreenGrab():
 
     def __init__(self, dataset_mode = "Solo"):
-        self.xy = 126  #downsize to 126x126px
-        self.x_offset = 104-1
-        self.y_offset = 52-1
-        self.show_me_stale = 0
+        self.xy = 128  #downsize to 128x128px
         self.dataset_mode = dataset_mode #Solo, Group
         self.home_dir = os.getcwd()
 
@@ -46,13 +44,9 @@ class ScreenGrab():
     def quick_Grab(self, region=None):
         hwin = win32gui.GetDesktopWindow()
         if region:
-            #left, top, width, height = 104, 52, (1922-104 +1), (1472-52  +1)
             left, top, width, height = 104, 52, 1819, 1421
 
         else:
-            #left, top, width, height = 104, 52, (1922-104 +1), (1472-52  +1)
-            #left, top, width, height = 104, 52, 1819, 1421 #1819x1421px
-            #left, top, width, height = 846, 389, 305, 352 #305x352px
             left, top, width, height = 45, 344, 873, 925 #873x925px
 
         hwindc = win32gui.GetWindowDC(hwin)
@@ -155,52 +149,6 @@ class ScreenGrab():
     #Master reward function. calls reward subfunctions.
     def reward_scan(self, image, mode, agent_action=0):
 
-        """let's track what place we're in
-        place = 4 #anything past 4th is the same as 4th.
-        sixth_features = []
-        sixth_features.append(image[113-52-1][276-104-1]) #6th_1
-        sixth_features.append(image[182-52-1][221-104-1]) #6th_2
-        sixth_features.append(image[230-52-1][248-104-1]) #6th_3
-        sixth_truth = 0
-        for feature in sixth_features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
-                sixth_truth += 1
-            if sixth_truth == 3:
-                place = 6
-
-        first_features = [] #1st Features in Y/X format (pixel fingerprints).
-        first_features.append(image[132-52-1][352-104-1]) #1st_1
-        first_features.append(image[140-52-1][347-104-1]) #1st_2
-        first_features.append(image[146-52-1][309-104-1]) #1st_3
-        first_truth = 0
-        for feature in first_features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
-                first_truth += 1
-            if first_truth == 3:
-                place = 1
-
-        second__features = []
-        second__features.append(image[122-52-1][371-104-1]) #2nd_1
-        second__features.append(image[150-52-1][355-104-1]) #2nd_2
-        second_truth = 0
-        for feature in second__features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
-                second_truth += 1
-            if second_truth == 2:
-                place = 2
-
-        third__features = []
-        third__features.append(image[150-52-1][306-104-1]) #3rd_1
-        third__features.append(image[101-52-1][308-104-1]) #3rd_2
-        third_truth = 0
-        for feature in third__features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
-                third_truth += 1
-            if third_truth == 2:
-                place = 3
-        """
-        place = 1 #this is a dummy value
-
         wrong_way_crop = image[195:241, 362:513]# Wrong Way Coords in [Y1:Y2, X1:X2] format
         #status = cv2.imwrite("wrong_way_sample.png", wrong_way_crop)
         wrong_way_bool = self.wrong_way(wrong_way_crop)
@@ -212,14 +160,13 @@ class ScreenGrab():
             minmap_img = image[741:803, 745:785]
             reward = self.minmap_scan(minmap_img)
         elif mode == 1:#Speedguage
-            #speedgauge = image[1260-self.y_offset:1360-self.y_offset, 1720-self.x_offset:1820-self.x_offset]
             speedgauge = image[786:851, 775:823]#873x925px
             reward = self.speed_scan(speedgauge)
         elif mode == 2:#ShowMeLive
             reward = self.show_me_scan(agent_action)
         elif mode == 3:#dummy mode
             reward=0
-        return reward, wrong_way_bool, place
+        return reward, wrong_way_bool
 
     # Scan the minimap for reward (on/off track; rivals proximity)
     def minmap_scan(self, image):
@@ -377,7 +324,9 @@ class ScreenGrab():
 
         return speed_reward
 
-    def item_scan(self, img): #determine if a valid item is available.
+    ## Additional Pixel Analysis
+    def item_scan(self, img): 
+        #determine if a valid item is available.
         #feed full screenshot. Detects all but level 4 yellow mummies curse.
         item_bool = False
         item_features = []
@@ -569,6 +518,7 @@ class ScreenGrab():
 
         return average_img
 
+    ## Optional; Paints action
     def add_watermark(self, image, action):
         #Note: Watermak img must be loaded as cv2.imread("watermark.png", -1) #-1 is neccessary.
         watermark = self.watermark_dict[action]
@@ -638,7 +588,7 @@ class ScreenGrab():
         image = np.reshape(image, (self.xy, self.xy, 1))
         return image
 
-# Where neural outputs are covnerted to actions
+# Where NN outputs are covnerted to actions
 class Actions():
 
     def __init__(self):
@@ -685,7 +635,7 @@ class Actions():
             key_mapper.toggleMode(self.current_mapmode)
             self.current_mapmode = 1 #set to speedguage
 
-# Initialization Parameters for Troubleshooting.
+## Unit Testing.
 def main(mode):
 
     if mode == 'Actions':
@@ -771,7 +721,6 @@ def main(mode):
         while 1:
             img = grab.quick_Grab()
             side_glitch_bool = grab.side_glitch(img)
-            #print(side_glitch_bool)
 
     elif mode == 'Item':
         grab = ScreenGrab()

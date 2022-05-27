@@ -131,7 +131,7 @@ class Dataset_Generator():
                     return
             
             time.sleep(self.timing_offset) #gets us into the framerate we want.
-            
+
 if __name__ == "__main__":
     dataset = Dataset_Generator()
     while 1:

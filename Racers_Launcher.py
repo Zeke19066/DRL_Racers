@@ -1,4 +1,4 @@
-import Racers_Train_A2C as Racers_Train
+import Racers_Train as Racers_Train
 import Dataset_Generator
 
 import multiprocessing
