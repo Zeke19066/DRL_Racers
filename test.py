@@ -1,7 +1,11 @@
+from collections import deque
 
-import numpy as np
+que = deque(maxlen=25)
 
-for _ in range(99):
- rand = np.random.randint(8)
- if not rand:
-      print(rand)
+que.append(9)
+que.append(9)
+que.append(9)
+que.append(8)
+#que.pop()
+que.append(9)
+print(que)

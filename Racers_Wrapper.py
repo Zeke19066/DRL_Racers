@@ -32,13 +32,15 @@ class ScreenGrab():
         self.dataset_mode = dataset_mode #Solo, Group
         self.home_dir = os.getcwd()
 
-        watermark_up = cv2.imread(r"Resources\1_up.png", -1) #-1 is neccessary for alpha.
+        #-1 is for alpha channel.
+        watermark_up = cv2.imread(r"Resources\1_up.png", -1)
         watermark_down = cv2.imread(r"Resources\1_down.png", -1)
         watermark_left = cv2.imread(r"Resources\1_left.png", -1)
         watermark_right = cv2.imread(r"Resources\1_right.png", -1)
         watermark_circle = cv2.imread(r"Resources\1_circle.png", -1)
-        self.watermark_dict = {0:watermark_up, 1:watermark_circle, 2:watermark_down, 
-                                3:watermark_left, 4:watermark_right}
+        self.watermark_dict = {0:watermark_up, 1:watermark_circle,
+                                2:watermark_down, 3:watermark_left,
+                                4:watermark_right}
 
     #Quick Screenshot
     def quick_Grab(self, region=None):
@@ -55,7 +57,8 @@ class ScreenGrab():
         bmp = win32ui.CreateBitmap()
         bmp.CreateCompatibleBitmap(srcdc, width, height)
         memdc.SelectObject(bmp)
-        memdc.BitBlt((0, 0), (width, height), srcdc, (left, top), win32con.SRCCOPY)
+        memdc.BitBlt((0, 0), (width, height), srcdc, (left, top),
+                    win32con.SRCCOPY)
         
         signedIntsArray = bmp.GetBitmapBits(True)
         #img = np.fromstring(signedIntsArray, dtype='uint8')
@@ -73,20 +76,22 @@ class ScreenGrab():
         img = np.array(img)
         img = cv2.resize(img, (self.xy, self.xy))
         img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        img = cv2.equalizeHist(img) #equalize the image for greater contrast.
-        if wrong_way_bool: #invert image if we're going the wrong way.
-            img = ~img
+        #equalize the image for greater contrast.
+        img = cv2.equalizeHist(img) 
+        if wrong_way_bool: 
+            img = ~img #invert image if we're going the wrong way.
         img = np.reshape(img, (self.xy, self.xy, 1))
         return img
         
     #loading dataset images.
     def data_loader(self, first_run=False, reset=False):
         gameover_bool = False
+
         #subfunction for natural sorting of file names.
         import re
         def natural_sorter(data):
             convert = lambda text: int(text) if text.isdigit() else text.lower()
-            alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+            alphanum_key = lambda key:[convert(c) for c in re.split('([0-9]+)', key)] 
             return sorted(data, key=alphanum_key)
 
         #a subfunction for extracting the human actions from filenames
@@ -125,8 +130,8 @@ class ScreenGrab():
             os.chdir(self.subfolder)
             self.file_list = os.listdir()
             self.file_list = natural_sorter(self.file_list)
-            self.action_list = meta_extractor(self.file_list)#make a seperate list of actions from filename
-
+            #make a seperate list of actions from filename
+            self.action_list = meta_extractor(self.file_list)
             #preload all the images:
             self.frame_buffer = []
             for file_name in self.file_list:
@@ -142,20 +147,19 @@ class ScreenGrab():
             gameover_bool = True
             print("Attempting Game-Over")
         current_image = self.frame_buffer[self.img_index]
-        current_human_action = int(self.action_list[self.img_index]) #gotta be int type
+        current_human_action = int(self.action_list[self.img_index])
         self.img_index += 1
         return current_image, current_human_action, gameover_bool
 
     #Master reward function. calls reward subfunctions.
     def reward_scan(self, image, mode, agent_action=0):
 
-        wrong_way_crop = image[195:241, 362:513]# Wrong Way Coords in [Y1:Y2, X1:X2] format
+        wrong_way_crop = image[195:241, 362:513]#[Y1:Y2, X1:X2] format
         #status = cv2.imwrite("wrong_way_sample.png", wrong_way_crop)
         wrong_way_bool = self.wrong_way(wrong_way_crop)
 
         #Call Reward Mode
         if mode == 0: #Minmap
-            #minmap_img = image[651:893, 680:850] #the tuning for the classic mode.
             adj1, adj2 = 90,65
             minmap_img = image[741:803, 745:785]
             reward = self.minmap_scan(minmap_img)
@@ -171,7 +175,8 @@ class ScreenGrab():
     # Scan the minimap for reward (on/off track; rivals proximity)
     def minmap_scan(self, image):
         """
-        we use a similar scheme to the speedcheck protocol. Most checks should be infront of the green race arrow,
+        we use a similar scheme to the speedcheck protocol.
+        Most checks should be infront of the green race arrow,
         so the image for those is the top 50 of img. 
         """
         #Front of the green arrow
@@ -198,8 +203,7 @@ class ScreenGrab():
             Interprets the x,y into degrees around the center.
             Note: less degrees means faster.
             """
-            x,y = x-x_mid, (y*-1)+y_mid #note: y values are goofy in array notation.
-            #rho = np.sqrt(x**2 + y**2)
+            x,y = x-x_mid, (y*-1)+y_mid 
             phi = np.arctan2(y, x)
             phi = math.degrees(phi) #phi is in raidans, we want degrees.
             if phi < 0:
@@ -225,17 +229,19 @@ class ScreenGrab():
             phi = 360
 
         """The ideal range we want is 90deg, meaning the track is right infront of us (think _| )"""
-        #minmap_reward = round(np.interp(phi*-1,[in_min, in_max],[min_reward, max_reward]),2) #note: we need to invert phi since angle goes from big to small.
         minmap_reward = -1
         target = 90
         variance_1, variance_2 = 10, 25 #degree variance +/- from the target
         
         #first let's see if we have a boost from the rival or other racers:
-        if len(red_front_matches)/(total_area/2) > 0.03: #blue dots take up > 5% of screen
+        
+        #blue dots take up > 5% of screen
+        if len(red_front_matches)/(total_area/2) > 0.03:
             minmap_reward = 1.5
             #print("redmatch", end="")
 
-        elif len(blue_front_matches)/(total_area/2) > 0.03: #blue dots take up > 5% of screen
+        #blue dots take up > 5% of screen
+        elif len(blue_front_matches)/(total_area/2) > 0.03: 
             minmap_reward = 1.5
             #print("bluematch", end="")
         
@@ -247,15 +253,20 @@ class ScreenGrab():
                 minmap_reward = 0.5
 
             if minmap_reward > 0: #check for racers behind agent
-                blue_rear_mask = cv2.inRange(image_top, blue_lower, blue_upper)
+                blue_rear_mask = cv2.inRange(image_top, blue_lower,
+                                            blue_upper)
                 red_rear_mask = cv2.inRange(image_top, red_lower, red_upper)
                 blue_rear_matches = np.argwhere(blue_rear_mask==255)
                 red_rear_matches = np.argwhere(red_rear_mask==255)
                 #first let's see if we have a boost from the rival or other racers:
-                if len(red_rear_matches)/(total_area/2) > 0.03: #blue dots take up > 5% of screen
+                #blue dots take up > 5% of screen
+                
+                if len(red_rear_matches)/(total_area/2) > 0.03:
                     minmap_reward = 1.5
+
                     #print("redmatch", end="")
-                elif len(blue_rear_matches)/(total_area/2) > 0.03: #blue dots take up > 5% of screen
+                #blue dots take up > 5% of screen
+                elif len(blue_rear_matches)/(total_area/2) > 0.03: 
                     minmap_reward = 1.5
 
         #cv2.imshow("cv2screen", red_mask)
