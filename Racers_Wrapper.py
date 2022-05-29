@@ -91,10 +91,10 @@ class ScreenGrab():
         import re
         def natural_sorter(data):
             convert = lambda text: int(text) if text.isdigit() else text.lower()
-            alphanum_key = lambda key:[convert(c) for c in re.split('([0-9]+)', key)] 
+            alphanum_key = lambda key:[convert(c) for c in re.split('([0-9]+)', key)]
             return sorted(data, key=alphanum_key)
 
-        #a subfunction for extracting the human actions from filenames
+        #used to get the human actions from filenames
         def meta_extractor(filename_list):
             action_list = []
             for filename in filename_list:
@@ -117,7 +117,7 @@ class ScreenGrab():
 
         if first_run:
             print("Initializing Dataset....", end="")
-            #Chose the random folder and load the first image. 
+            #Chose the random folder and load the first image.
             os.chdir(self.home_dir)
             if self.dataset_mode == "Solo":
                 os.chdir("Dataset\Solo")
@@ -135,8 +135,10 @@ class ScreenGrab():
             #preload all the images:
             self.frame_buffer = []
             for file_name in self.file_list:
-                sub_frame = cv2.imread(file_name, cv2.IMREAD_UNCHANGED) #cv2.IMREAD_GRAYSCALE
-                sub_frame = cv2.cvtColor(sub_frame, cv2.COLOR_GRAY2RGB) #Alhpa channel for watermark
+                #cv2.IMREAD_GRAYSCALE
+                sub_frame = cv2.imread(file_name, cv2.IMREAD_UNCHANGED)
+                #Alhpa channel for watermark
+                sub_frame = cv2.cvtColor(sub_frame, cv2.COLOR_GRAY2RGB)
                 #sub_frame = np.reshape(sub_frame, (self.xy, self.xy, 1))
                 self.frame_buffer.append(sub_frame)
 
@@ -190,12 +192,15 @@ class ScreenGrab():
 
         #Filters for track and dots on track.
         adj = 25
-        track_lower= np.array([192-adj, 192-adj, 192-adj]) #(192,192,192)
-        track_upper = np.array([192+35, 192+35, 192+adj]) #(192,192,192)
-        blue_lower= np.array([40-adj, 0, 216-adj]) #(40,0,216)
-        blue_upper = np.array([40+adj, 0+adj, 216+adj]) #(40,0,216)
-        red_lower= np.array([216-adj,0,40-adj]) #(216,0,40)
-        red_upper = np.array([216+adj,0,40+adj]) #(216,0,40)
+        #track(192,192,192)
+        track_lower= np.array([192-adj, 192-adj, 192-adj])
+        track_upper = np.array([192+35, 192+35, 192+adj])
+        #blue(40,0,216)
+        blue_lower= np.array([40-adj, 0, 216-adj])
+        blue_upper = np.array([40+adj, 0+adj, 216+adj])
+        #red(216,0,40)
+        red_lower= np.array([216-adj,0,40-adj])
+        red_upper = np.array([216+adj,0,40+adj])
 
 
         def cart2pol(x, y):
@@ -210,10 +215,10 @@ class ScreenGrab():
                 phi = 360-abs(phi)
             return phi
 
-        track_mask = cv2.inRange(image_track_top, track_lower, track_upper)        
+        track_mask = cv2.inRange(image_track_top, track_lower, track_upper)
         blue_front_mask = cv2.inRange(image_top, blue_lower, blue_upper)
         red_front_mask = cv2.inRange(image_top, red_lower, red_upper)
-        
+
         track_matches = np.argwhere(track_mask==255)
         blue_front_matches = np.argwhere(blue_front_mask==255)
         red_front_matches = np.argwhere(red_front_mask==255)
@@ -228,7 +233,8 @@ class ScreenGrab():
         if np.isnan(phi):
             phi = 360
 
-        """The ideal range we want is 90deg, meaning the track is right infront of us (think _| )"""
+        """The ideal range we want is 90deg, 
+           meaning the track is right infront of us (think _| )"""
         minmap_reward = -1
         target = 90
         variance_1, variance_2 = 10, 25 #degree variance +/- from the target
@@ -247,9 +253,9 @@ class ScreenGrab():
         
         #No other racers, let's look for track
         elif minmap_reward < 0:
-            if (phi > target-variance_1) and (phi < target+variance_1):
+            if (phi > target-variance_1) and (phi < target + variance_1):
                 minmap_reward = 1.2
-            elif (phi > target-variance_2) and (phi < target+variance_2):
+            elif (phi > target-variance_2) and (phi < target + variance_2):
                 minmap_reward = 0.5
 
             if minmap_reward > 0: #check for racers behind agent
@@ -272,7 +278,8 @@ class ScreenGrab():
         #cv2.imshow("cv2screen", red_mask)
         #cv2.waitKey(1)
 
-        if len(track_matches)/(total_area/2) > 0.75: #Something is wrong if 75% of mask is track.
+         #Something is wrong if 75% of mask is track.
+        if len(track_matches)/(total_area/2) > 0.75:
             minmap_reward = min_reward
 
         #print(minmap_reward, phi)
@@ -289,9 +296,9 @@ class ScreenGrab():
             """
             Interprets the x,y into degrees around the center.
             Note: less degrees means faster.
+            y values are goofy in array notation.
             """
-            x,y = x-x_mid, (y*-1)+y_mid #note: y values are goofy in array notation.
-            #rho = np.sqrt(x**2 + y**2)
+            x,y = x-x_mid, (y*-1)+y_mid
             phi = np.arctan2(y, x)
             phi = math.degrees(phi) #phi is in raidans, we want degrees.
             if phi < 0:
@@ -299,15 +306,17 @@ class ScreenGrab():
             return phi
 
         def log_speed(speed):
-            speed = round(np.interp(speed*-1,[in_min, in_max],[log_min, log_max]),2) #normalize our inverted polar degree scale to 0-1
+            #normalize our inverted polar degree scale to 0-1
+            speed = round(np.interp(speed*-1,
+                                    [in_min, in_max],
+                                    [log_min, log_max]),2) 
             x = (float(speed) / float((log_max)) * 100.0) + 0.99
             base = 10
             log_reward = max(0.0, math.log(x, base) / 2.0)
             return round(log_reward, 4)
 
-        lower = np.array([160,160,160]) #rgb [160,160,160]
-        #lower = np.array([240,240,240]) #rgb [160,160,160]
-        upper = np.array([250,250,250]) #rgb [250,250,250]
+        lower = np.array([160,160,160])
+        upper = np.array([250,250,250])
 
         mask = cv2.inRange(img, lower, upper)
         mask_sum = int(np.sum(mask)/1000)
@@ -325,7 +334,10 @@ class ScreenGrab():
 
         #Log Settings
         phi_log = log_speed(phi)
-        speed_reward = round(np.interp(phi_log,[log_min, log_max],[min_reward, max_reward]),2) #map from log-phi to our desired reward range.
+        #map from log-phi to our desired reward range.
+        speed_reward = round(np.interp(phi_log,
+                                       [log_min, log_max],
+                                       [min_reward, max_reward]),2)
         
         #speed_reward = round(np.interp(phi*-1,[in_min, in_max],[min_reward, max_reward]),2) #note: we need to invert phi since angle goes from big to small.
         #cv2.imshow("cv2screen", img)
@@ -358,9 +370,11 @@ class ScreenGrab():
         mask = cv2.inRange(item_color, lower, upper)
 
         for feature in item_features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
+            #if R,G, and B are white...
+            if feature[0] > 225 and feature[1] > 225 and feature[2] >225:
                 item_truth += 1
-            #if item_truth == 3 and mask[0][0]!=255: #use this to avoid speed boosts, which are hard to control.
+            #use this to avoid speed boosts, which are hard to control.
+            #if item_truth == 3 and mask[0][0]!=255:
             #    item_bool = True
             if item_truth == 3:
                 item_bool = True       
@@ -380,7 +394,8 @@ class ScreenGrab():
 
         if len(white_matches) > 0: #we can only sum non-empty arrays.
             match_sum = list(sum(white_matches))
-        fingerprints = {1:[0, 153], 2:[0, 69], 3:[0, 329], 4:[0, 490],5:[0, 212],6:[0,147]}
+        fingerprints = {1:[0, 153], 2:[0, 69], 3:[0, 329],
+                        4:[0, 490], 5:[0, 212], 6:[0,147]}
 
         for place_key, signature in fingerprints.items():
             if match_sum == signature:
@@ -398,7 +413,8 @@ class ScreenGrab():
         first_lap_features.append(img[12][45])
         first_lap_truth = 0
         for feature in first_lap_features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
+            #if R,G, and B are white...
+            if feature[0] > 225 and feature[1] > 225 and feature[2] >225:
                 first_lap_truth += 1
             if first_lap_truth == 3:
                 lap = 1
@@ -409,7 +425,7 @@ class ScreenGrab():
         second_lap_features.append(img[42][63])
         second_lap_truth = 0
         for feature in second_lap_features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
+            if feature[0] > 225 and feature[1] > 225 and feature[2] >225:
                 second_lap_truth += 1
             if second_lap_truth == 3:
                 lap = 2
@@ -420,7 +436,7 @@ class ScreenGrab():
         third_lap_features.append(img[36][66])
         third_lap_truth = 0
         for feature in third_lap_features:
-            if feature[0] > 225 and feature[1] > 225 and feature[2] >225: #if R,G, and B are white...
+            if feature[0] > 225 and feature[1] > 225 and feature[2] >225:
                 third_lap_truth += 1
             if third_lap_truth == 3:
                 lap = 3
@@ -444,9 +460,11 @@ class ScreenGrab():
         yellow_lower= np.array([248-adj,252-adj,0]) #(216,0,40)
         yellow_upper = np.array([248+adj,252+adj,0]) #(216,0,40)
 
-        yellow_mask = cv2.inRange(first_lap_features, yellow_lower, yellow_upper)
+        yellow_mask = cv2.inRange(first_lap_features,
+                                  yellow_lower, yellow_upper)
         yellow_matches = np.argwhere(yellow_mask==255)
-        if len(yellow_matches) == len(first_lap_features): #they all matched
+        if len(yellow_matches) == len(first_lap_features):
+            #they all matched
             go_bool = True
         
         return go_bool
@@ -460,7 +478,8 @@ class ScreenGrab():
         features.append(crop[22][58])
         features.append(crop[12][80])
         for feature in features:
-            if feature[0] < 225 or feature[1] < 225 or feature[2] < 225: #if any of R,G, or B aren't white...
+            #if any of R,G, or B aren't white...
+            if feature[0] < 225 or feature[1] < 225 or feature[2] < 225:
                 wrong_way_bool = False
         return wrong_way_bool
 
@@ -475,16 +494,17 @@ class ScreenGrab():
         features.append(crop[40][105])
 
         for feature in features:
-            if feature[0] < 225 or feature[1] < 225 or feature[2] < 225: #if any of R,G, or B aren't white...
+            #if any of R,G, or B aren't white...
+            if feature[0] < 225 or feature[1] < 225 or feature[2] < 225:
                 race_over_bool = False
         return race_over_bool
 
     def side_glitch(self, image):
         side_glitch_bool = False
-        side_glitch_image_left = image[583:586, 376:378]# Unit Label Coords in [Y1:Y2, X1:X2] format
-        side_glitch_average_img_left = self.pixel_averager(side_glitch_image_left)
-        side_glitch_image_right = image[583:586, 496:498]# Unit Label Coords in [Y1:Y2, X1:X2] format
-        side_glitch_average_img_right = self.pixel_averager(side_glitch_image_right)
+        side_glitch_image_left = image[583:586, 376:378]# [Y1:Y2, X1:X2] format
+        side_glitch_left = self.pixel_averager(side_glitch_image_left)
+        side_glitch_image_right = image[583:586, 496:498]# [Y1:Y2, X1:X2] format
+        side_glitch_right = self.pixel_averager(side_glitch_image_right)
 
         side_glitch_lower= np.array([10, 122, 28])
         side_glitch_upper = np.array([20, 135, 36])
@@ -493,35 +513,53 @@ class ScreenGrab():
         tent_lower= np.array([0, 0, 0])
         tent_upper = np.array([2, 2, 2])
 
-        side_glitch_mask_left = cv2.inRange(side_glitch_average_img_left, side_glitch_lower, side_glitch_upper)
-        side_glitch_mask_right = cv2.inRange(side_glitch_average_img_right, side_glitch_lower, side_glitch_upper)
-        obelisk_mask_left = cv2.inRange(side_glitch_average_img_left, obelisk_lower, obelisk_upper)
-        obelisk_mask_right = cv2.inRange(side_glitch_average_img_right, obelisk_lower, obelisk_upper)
-        tent_mask_left = cv2.inRange(side_glitch_average_img_left, tent_lower, tent_upper)
-        tent_mask_right = cv2.inRange(side_glitch_average_img_right, tent_lower, tent_upper)
+        side_glitch_mask_left = cv2.inRange(side_glitch_left,
+                                            side_glitch_lower,
+                                            side_glitch_upper)
+        side_glitch_mask_right = cv2.inRange(side_glitch_right,
+                                             side_glitch_lower,
+                                             side_glitch_upper)
+        obelisk_mask_left = cv2.inRange(side_glitch_left,
+                                        obelisk_lower,
+                                        obelisk_upper)
+        obelisk_mask_right = cv2.inRange(side_glitch_right,
+                                         obelisk_lower,
+                                         obelisk_upper)
+        tent_mask_left = cv2.inRange(side_glitch_left,
+                                     tent_lower,
+                                     tent_upper)
+        tent_mask_right = cv2.inRange(side_glitch_right,
+                                      tent_lower,
+                                      tent_upper)
 
-        if (side_glitch_mask_left[0][0] != 0) or (obelisk_mask_left[0][0] != 0) or (tent_mask_left[0][0] != 0):
+        if ((side_glitch_mask_left[0][0] != 0) 
+                or (obelisk_mask_left[0][0] != 0)
+                or (tent_mask_left[0][0] != 0)):
             side_glitch_bool = True
-        if (side_glitch_mask_right[0][0] != 0) or (obelisk_mask_right[0][0] != 0) or (tent_mask_right[0][0] != 0):
+        if ((side_glitch_mask_right[0][0] != 0)
+                or (obelisk_mask_right[0][0] != 0)
+                or (tent_mask_right[0][0] != 0)):
             side_glitch_bool = True
 
         #tree glitch section
-        tree_glitch_image_left = image[473:501, 426:437]# Unit Label Coords in [Y1:Y2, X1:X2] format
-        tree_glitch_average_img = self.pixel_averager(tree_glitch_image_left)
+        tree_glitch_image_left = image[473:501, 426:437]#[Y1:Y2, X1:X2] format
+        tree_glitch_avg_img = self.pixel_averager(tree_glitch_image_left)
         
         adj = 25
         tree_lower= np.array([0,226-adj,71-adj]) #rgb (54,28,8) (15,226,71)
         tree_upper= np.array([15+adj,226+adj,71+adj]) #rgb (54,28,8)
-        tree_mask_left = cv2.inRange(tree_glitch_average_img, tree_lower, tree_upper)
+        tree_mask_left = cv2.inRange(tree_glitch_avg_img, 
+                                     tree_lower,
+                                     tree_upper)
         if (tree_mask_left[0][0] != 0):
             side_glitch_bool = True
-            #print(tree_glitch_average_img[0][0], end="")
+            #print(tree_glitch_avg_img[0][0], end="")
 
         return side_glitch_bool
 
     def pixel_averager(self, image_crop):
         #input the cropped image
-        image_crop = cv2.cvtColor(image_crop, cv2.COLOR_RGB2HSV) # Convert to HSV
+        image_crop = cv2.cvtColor(image_crop, cv2.COLOR_RGB2HSV)
         average_pixel = np.mean(image_crop, axis = 0)
         average_pixel = np.mean(average_pixel, axis = 0)
         average_pixel = average_pixel.astype(np.intc)
@@ -529,9 +567,8 @@ class ScreenGrab():
 
         return average_img
 
-    ## Optional; Paints action
+    ## Optional; action watermark
     def add_watermark(self, image, action):
-        #Note: Watermak img must be loaded as cv2.imread("watermark.png", -1) #-1 is neccessary.
         watermark = self.watermark_dict[action]
         h_img, w_img, _ = image.shape
         h_wm, w_wm, _ = watermark.shape
@@ -543,33 +580,32 @@ class ScreenGrab():
         alpha_mask = watermark[:, :, 3] / 255.0
 
         # Image ranges
-        y1, y2 = max(0, y), min(image.shape[0], y + image_overlay.shape[0])
-        x1, x2 = max(0, x), min(image.shape[1], x + image_overlay.shape[1])
+        y1, y2 = max(0, y), min(image.shape[0], y+image_overlay.shape[0])
+        x1, x2 = max(0, x), min(image.shape[1], x+image_overlay.shape[1])
         # Overlay ranges
-        y1o, y2o = max(0, -y), min(image_overlay.shape[0], image.shape[0] - y)
-        x1o, x2o = max(0, -x), min(image_overlay.shape[1], image.shape[1] - x)
+        y1o, y2o = max(0, -y), min(image_overlay.shape[0], image.shape[0]-y)
+        x1o, x2o = max(0, -x), min(image_overlay.shape[1], image.shape[1]-x)
         # Exit if nothing to do
         if y1 >= y2 or x1 >= x2 or y1o >= y2o or x1o >= x2o:
-            return print('ScreenGrab.add_Mouse FAILED')
+            return print('WATERMARK FAILED')
         channels = image.shape[2]
         alpha = alpha_mask[y1o:y2o, x1o:x2o]
         alpha_inv = 1.0 - alpha
         for c in range(channels):
-            image[y1:y2, x1:x2, c] = (alpha * image_overlay[y1o:y2o, x1o:x2o, c] +
-                                    alpha_inv * image[y1:y2, x1:x2, c])
-
+            image[y1:y2, x1:x2, c] = (alpha 
+                                      * image_overlay[y1o:y2o, x1o:x2o, c]
+                                      + alpha_inv * image[y1:y2, x1:x2, c])
         return image
 
     def add_watermark_dataset(self, image, action):
         #add watermark to small images from database.
-        #Note: Watermak img must be loaded as cv2.imread("watermark.png", -1) #-1 is neccessary.
         watermark = self.watermark_dict[action]
         h_img, w_img, _ = image.shape
         h_wm, w_wm, _ = watermark.shape
 
         #Resize watermark from 873x925px to 126x126 scale
-        new_x = round(np.interp(w_wm,[0, 873],[0, 126])) #map from log-phi to our desired reward range.
-        new_y = round(np.interp(h_wm,[0, 925],[0, 126])) #map from log-phi to our desired reward range.
+        new_x = round(np.interp(w_wm,[0, 873],[0, 126])) 
+        new_y = round(np.interp(h_wm,[0, 925],[0, 126])) 
         watermark = cv2.resize(watermark, (new_x, new_y)) #(width, height)
         h_wm, w_wm, _ = watermark.shape
 
@@ -580,22 +616,23 @@ class ScreenGrab():
         alpha_mask = watermark[:, :, 3] / 255.0
 
         # Image ranges
-        y1, y2 = max(0, y), min(image.shape[0], y + image_overlay.shape[0])
-        x1, x2 = max(0, x), min(image.shape[1], x + image_overlay.shape[1])
+        y1, y2 = max(0, y), min(image.shape[0], y+image_overlay.shape[0])
+        x1, x2 = max(0, x), min(image.shape[1], x+image_overlay.shape[1])
         # Overlay ranges
-        y1o, y2o = max(0, -y), min(image_overlay.shape[0], image.shape[0] - y)
-        x1o, x2o = max(0, -x), min(image_overlay.shape[1], image.shape[1] - x)
+        y1o, y2o = max(0, -y), min(image_overlay.shape[0], image.shape[0]-y)
+        x1o, x2o = max(0, -x), min(image_overlay.shape[1], image.shape[1]-x)
         # Exit if nothing to do
         if y1 >= y2 or x1 >= x2 or y1o >= y2o or x1o >= x2o:
-            return print('ScreenGrab.add_Mouse FAILED')
+            return print('WATERMARK FAILED')
         channels = image.shape[2]
         alpha = alpha_mask[y1o:y2o, x1o:x2o]
         alpha_inv = 1.0 - alpha
         for c in range(channels):
-            image[y1:y2, x1:x2, c] = (alpha * image_overlay[y1o:y2o, x1o:x2o, c] +
-                                    alpha_inv * image[y1:y2, x1:x2, c])
+            image[y1:y2, x1:x2, c] = (alpha 
+                                      * image_overlay[y1o:y2o, x1o:x2o, c] 
+                                      + alpha_inv * image[y1:y2, x1:x2, c])
 
-        image = cv2.cvtColor(image, cv2.COLOR_RGBA2GRAY) #grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_RGBA2GRAY)
         image = np.reshape(image, (self.xy, self.xy, 1))
         return image
 
@@ -603,10 +640,10 @@ class ScreenGrab():
 class Actions():
 
     def __init__(self):
-        self.last_action = int(5) #initiate out of range to be overwritten.
+        self.last_action = int(5) 
         #modes: 1:Circuit 2:Single, 3:Versus, 4:Time
         #course 2 track 3 is the problem level.
-        self.mode, self.course, self.track = 4, 2, 3 #mode/course/track selection.
+        self.mode, self.course, self.track = 4, 2, 3 #mode/course/track
         self.current_mapmode = 0 #minmap(0), speedguage(1)
 
     # Map NN output to actions
@@ -620,7 +657,7 @@ class Actions():
         key_mapper.reset()
         while 1: #Check to see when its time to go.
             img = grab.quick_Grab()
-            go_crop = img[154:316, 363:511]# Wrong Way Coords in [Y1:Y2, X1:X2] format
+            go_crop = img[154:316, 363:511]#[Y1:Y2, X1:X2] format
             go_bool = grab.go_scan(go_crop)
             if go_bool:
                 print('GO!')
@@ -675,8 +712,8 @@ def main(mode):
         def screengrab_subfunction():
             for i in range(1000):
                 img = grab.quick_Grab()
-                #sub_img = img[154:316, 363:511]# Wrong Way Coords in [Y1:Y2, X1:X2] format
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGRA) #retruns the BGR Image
+                #sub_img = img[154:316, 363:511]#[Y1:Y2, X1:X2] format
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGRA)
                 status = cv2.imwrite(f"mini_img_sample{i}.png", img)
                 #status = cv2.imwrite(f"sub_img{i}.png", sub_img)
                 time.sleep(0.1)

@@ -1,1 +1,0 @@
-void actionMap(int action, int lastAction);

@@ -11,9 +11,8 @@ import time
 mode = "Train"
 
 def main(mode):
-    print(f"Pre-Startup Mode:{mode};")
+    print(f"Pre-Startup Mode:{mode}", end="")
     if mode == "Generate":
-        #start the game
         racers_shortcut_dir = r"Resources\LEGORacers.lnk"
         racers = os.startfile(racers_shortcut_dir)
         time.sleep(10)
@@ -25,11 +24,6 @@ def main(mode):
     elif mode == "Train":
         import Racers_GUI
         mode = 'train'
-        #start the game
-        
-        racers_shortcut_dir = r"Resources\LEGORacers.lnk"
-        racers = os.startfile(racers_shortcut_dir)
-        time.sleep(5)
 
         #Initialize multiprocess pipeline.
         send_connection, recieve_connection = multiprocessing.Pipe()

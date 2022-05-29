@@ -1,9 +1,3 @@
-"""
-AoM Training Monitor GUI
-
-Needed:
-
-"""
 import numpy as np
 import sys
 import os
@@ -12,22 +6,20 @@ from datetime import datetime, timedelta
 import cv2
 from collections import deque
 from colour import Color
-from collections import deque
 import json
-from datetime import datetime
-
-import matplotlib
-import matplotlib.pyplot as plt
-matplotlib.use('Qt5Agg')
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
-import matplotlib.patches as mpatches
-
-import pyqtgraph as pg
 
 from PyQt5 import QtWidgets as qtw
 from PyQt5 import QtGui as qtg
 from PyQt5 import QtCore as qtc
+
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use('Qt5Agg')
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+import matplotlib.patches as mpatches
+import pyqtgraph as pg
 
 class MainWindow(qtw.QMainWindow):
 
@@ -71,17 +63,22 @@ class CentralWidget(qtw.QWidget):
         self.circle_pixmap_1 = qtg.QPixmap('Resources/1_circle.png')
         self.circle_pixmap_2 = qtg.QPixmap('Resources/2_circle.png')
         self.circle_pixmap_3 = qtg.QPixmap('Resources/3_circle.png')
-        self.pixmap_dict = {0:self.up_pixmap_1, 1:self.up_pixmap_2, 2:self.up_pixmap_3, 3:self.down_pixmap_1, 4:self.down_pixmap_2, 5:self.down_pixmap_3, 
-                            6:self.left_pixmap_1, 7:self.left_pixmap_2, 8:self.left_pixmap_3, 9:self.right_pixmap_1, 10:self.right_pixmap_2,
-                            11:self.right_pixmap_3, 12:self.circle_pixmap_1, 13:self.circle_pixmap_2, 14:self.circle_pixmap_3}
-        self.click_set = ['null', 'color: rgb(33, 37, 43);', 'color: rgb(255,255,255);', 'color: rgb(80,167,239);']
+        self.pixmap_dict = {0:self.up_pixmap_1, 1:self.up_pixmap_2,
+                            2:self.up_pixmap_3, 3:self.down_pixmap_1,
+                            4:self.down_pixmap_2, 5:self.down_pixmap_3, 
+                            6:self.left_pixmap_1, 7:self.left_pixmap_2,
+                            8:self.left_pixmap_3, 9:self.right_pixmap_1,
+                            10:self.right_pixmap_2,11:self.right_pixmap_3,
+                            12:self.circle_pixmap_1, 13:self.circle_pixmap_2,
+                            14:self.circle_pixmap_3}
+        self.click_set = ['null', 'color: rgb(33, 37, 43);',
+                          'color: rgb(255,255,255);',
+                          'color: rgb(80,167,239);']
         self.action_set = ['Forward', 'Powerup', 'Reverse', 'Left', 'Right']
         
 
-        self.metrics_last = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] #initialize empty.
-
-        #graph Prepp
-        #plt.style.use('dark_background')  #after later style overwrites, this only makes the grid white vs grey.
+        self.metrics_last = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 #initialize empty.
+                             ,0,0,0,0,0,0,0,0,0,0,0,0,0,0,] 
 
         ## Plot of Racetime
         self.graph_racetime_que1 = deque(maxlen=self.master_data_width)
@@ -89,10 +86,12 @@ class CentralWidget(qtw.QWidget):
         self.graph_racetime_que3 = deque(maxlen=self.master_data_width)
         self.graph_racetime_que4 = deque(maxlen=self.master_data_width)
         self.graph_racetime_lineque = deque(maxlen=self.master_data_width)
-        self.graph_racetime = RewardPlotWidget(self, plot_layers=3, graph_label='Race Time Avg: -',
-            label_1="Final Time", label_2="Avg(25)", label_3="Deviance Abort",
-            y_min=-5, y_max=300, left=0.045
-            )
+        self.graph_racetime = RewardPlotWidget(self, plot_layers=3,
+                                               graph_label='Race Time Avg: -',
+                                               label_1="Final Time",
+                                               label_2="Avg(25)",
+                                               label_3="Deviance Abort",
+                                               y_min=-5,y_max=300,left=0.045)
 
         ## Plot of Total Reward
         self.graph_treward_que1 = deque(maxlen=self.master_data_width)
