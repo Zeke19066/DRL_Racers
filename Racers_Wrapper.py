@@ -24,7 +24,7 @@ not yield further performance and reduces human readability.
 
 '''
 
-# Screencapture & pixel analysis methods
+# Screencapture & screen analysis methods
 class ScreenGrab():
 
     def __init__(self, dataset_mode = "Solo"):
@@ -42,7 +42,7 @@ class ScreenGrab():
                                 2:watermark_down, 3:watermark_left,
                                 4:watermark_right}
 
-    #Quick Screenshot
+    # Quick Screenshot
     def quick_Grab(self, region=None):
         hwin = win32gui.GetDesktopWindow()
         if region:
@@ -83,7 +83,7 @@ class ScreenGrab():
         img = np.reshape(img, (self.xy, self.xy, 1))
         return img
         
-    #loading dataset images.
+    # loading dataset images.
     def data_loader(self, first_run=False, reset=False):
         gameover_bool = False
 
@@ -153,7 +153,7 @@ class ScreenGrab():
         self.img_index += 1
         return current_image, current_human_action, gameover_bool
 
-    #Master reward function. calls reward subfunctions.
+    # Master reward function. calls reward subfunctions.
     def reward_scan(self, image, mode, agent_action=0):
 
         wrong_way_crop = image[195:241, 362:513]#[Y1:Y2, X1:X2] format
@@ -174,7 +174,8 @@ class ScreenGrab():
             reward=0
         return reward, wrong_way_bool
 
-    # Scan the minimap for reward (on/off track; rivals proximity)
+    # Scan the minimap for reward
+    # (on/off track; rivals proximity)
     def minmap_scan(self, image):
         """
         we use a similar scheme to the speedcheck protocol.
@@ -285,7 +286,8 @@ class ScreenGrab():
         #print(minmap_reward, phi)
         return minmap_reward
 
-    # Scan speedgauge for reward(fast/slow).
+    # Scan speedgauge for reward
+    # (fast/slow)
     def speed_scan(self, img):
         x_mid, y_mid = int(img.shape[1]/2), int(img.shape[0]/2)
         min_reward, max_reward = -3, 2 #the floor should be below the min for log adjustment
@@ -347,7 +349,7 @@ class ScreenGrab():
 
         return speed_reward
 
-    ## Additional Pixel Analysis
+    ## Additional Screen Analysis
     def item_scan(self, img): 
         #determine if a valid item is available.
         #feed full screenshot. Detects all but level 4 yellow mummies curse.
@@ -606,11 +608,12 @@ class ScreenGrab():
         #Resize watermark from 873x925px to 126x126 scale
         new_x = round(np.interp(w_wm,[0, 873],[0, 126])) 
         new_y = round(np.interp(h_wm,[0, 925],[0, 126])) 
-        watermark = cv2.resize(watermark, (new_x, new_y)) #(width, height)
+        watermark = cv2.resize(watermark, (new_x, new_y))
         h_wm, w_wm, _ = watermark.shape
 
         y = 0
-        x = int(w_img/2)-int(w_wm/2) #center of img offset by the center of the watermark.
+        #center of img offset by the center of the watermark.
+        x = int(w_img/2)-int(w_wm/2) 
 
         image_overlay = watermark[:, :, 0:3]
         alpha_mask = watermark[:, :, 3] / 255.0
