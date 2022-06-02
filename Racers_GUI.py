@@ -1,3 +1,4 @@
+from cv2 import CAP_DC1394
 import numpy as np
 import sys
 import os
@@ -99,30 +100,38 @@ class CentralWidget(qtw.QWidget):
         self.graph_treward_que3 = deque(maxlen=self.master_data_width)
         self.graph_treward_que4 = deque(maxlen=self.master_data_width)
         self.graph_treward_lineque = deque(maxlen=self.master_data_width)
-        self.graph_treward = RewardPlotWidget(self, plot_layers=3, graph_label='Total Reward Avg: -',
-            label_1="Final Reward", label_2="Avg(25)", label_3="Save Abort",
-            y_min=-5, y_max=1000, left=0.07
-            )
+        self.graph_treward = RewardPlotWidget(self, plot_layers=3,
+                                              graph_label='Total Reward Avg: -',
+                                              label_1="Final Reward",
+                                              label_2="Avg(25)",
+                                              label_3="Save Abort",
+                                              y_min=-5, y_max=1000, left=0.07)
 
         ## Plot of Avg Actor & Avg Critic Qmax
         self.graph_avg_qmax_que1 = deque(maxlen=self.master_data_width)
         self.graph_avg_qmax_que2 = deque(maxlen=self.master_data_width)
         self.graph_avg_qmax_que3 = deque(maxlen=self.master_data_width)
         self.graph_avg_qmax_que4 = deque(maxlen=self.master_data_width)
-        self.graph_avg_qmax = PlotWidget(self,plot_layers=4, graph_label='Actor vs Critic Avg',
-            label_1="Agent Avg Qmax", label_2="Agent Closing Qmax", label_3="Critic Avg Qmax", label_4="Critic Closing Qmax",
-            y_min=-5, y_max=500, left=0.04
-            )
+        self.graph_avg_qmax = PlotWidget(self,plot_layers=4,
+                                         graph_label='Actor vs Critic Avg',
+                                         label_1="Agent Avg Qmax",
+                                         label_2="Agent Closing Qmax",
+                                         label_3="Critic Avg Qmax",
+                                         label_4="Critic Closing Qmax",
+                                         y_min=-5, y_max=500, left=0.04)
 
         ## Plot Failrate of moveset
         self.graph_action_failrate_que1 = deque(maxlen=self.master_data_width)
         self.graph_action_failrate_que2 = deque(maxlen=self.master_data_width)
         self.graph_action_failrate_que3 = deque(maxlen=self.master_data_width)
         self.graph_action_failrate_que4 = deque(maxlen=self.master_data_width)
-        self.graph_action_failrate = PlotWidget(self,plot_layers=4, graph_label='Action Failrate',
-            label_1="Forward", label_2="Left", label_3="Right", label_4="Power-Up",
-            y_min=-5, y_max=5, left=0.04
-            )
+        self.graph_action_failrate = PlotWidget(self,plot_layers=4,
+                                                graph_label='Action Failrate',
+                                                label_1="Forward",
+                                                label_2="Left",
+                                                label_3="Right",
+                                                label_4="Power-Up",
+                                                y_min=-5, y_max=5, left=0.04)
 
         ## Quickplot of the Actionspace
         num_bars = 5
@@ -137,9 +146,10 @@ class CentralWidget(qtw.QWidget):
         self.graph_actor_critic_que_1 = deque(maxlen=60)
         self.graph_actor_critic_que_2 = deque(maxlen=60)
         self.graph_actor_critic_que_3 = deque(maxlen=60)
-        self.graph_actor_critic = QuickCurveWidget(self,minimum=-50, maximum=250)
+        self.graph_actor_critic = QuickCurveWidget(self,minimum=-50, 
+                                                   maximum=250)
 
-        ## Quickplot of the Current Dataset Frame. Used here as a dummy frame for the active game window.
+        ## Quickplot of the Current Dataset Frame.
         self.image_graph = QuickImageWidget(self)
 
         ## Now populate all of the widgets in the main window.
@@ -223,9 +233,9 @@ class CentralWidget(qtw.QWidget):
         self.lap_metrics = qtw.QLabel(f' Lap: -/-', self)
         self.lap_metrics.setFont(self.metric_font)
         self.lap_metrics.setStyleSheet(metric_style)
-        self.last_reset = qtw.QLabel(f' Subcycle/Seconds: -/-', self)
-        self.last_reset.setFont(self.metric_font)
-        self.last_reset.setStyleSheet(metric_style)
+        self.subcycle_seconds = qtw.QLabel(f' Subcycle/Seconds: -/-', self)
+        self.subcycle_seconds.setFont(self.metric_font)
+        self.subcycle_seconds.setStyleSheet(metric_style)
 
         self.current_cycle = qtw.QLabel(f' Current Cycle: -', self)
         self.current_cycle.setFont(self.metric_font)
@@ -236,9 +246,9 @@ class CentralWidget(qtw.QWidget):
         self.avg_qmax = qtw.QLabel(f' Actor/Critic Avg Qmax: -/-', self)
         self.avg_qmax.setFont(self.metric_font)
         self.avg_qmax.setStyleSheet(metric_style)
-        self.performance_trend = qtw.QLabel(f' Time Trend: -', self)
-        self.performance_trend.setFont(self.metric_font)
-        self.performance_trend.setStyleSheet(metric_style)
+        self.time_trend = qtw.QLabel(f' Time Trend: -', self)
+        self.time_trend.setFont(self.metric_font)
+        self.time_trend.setStyleSheet(metric_style)
         self.ai_time = qtw.QLabel(f' Time: -/-', self)
         self.ai_time.setFont(self.metric_font)
         self.ai_time.setStyleSheet(metric_style)
@@ -253,12 +263,12 @@ class CentralWidget(qtw.QWidget):
         metrics_grid.addWidget(self.critic_value,3,0,1,1)
         metrics_grid.addWidget(self.fail_rate,4,0,1,1)
         metrics_grid.addWidget(self.lap_metrics,5,0,1,1)
-        metrics_grid.addWidget(self.last_reset,6,0,1,1)
+        metrics_grid.addWidget(self.subcycle_seconds,6,0,1,1)
 
         metrics_grid.addWidget(self.current_cycle,1,1,1,1)
         metrics_grid.addWidget(self.cycles_per_second,2,1,1,1)
         metrics_grid.addWidget(self.avg_qmax,3,1,1,1)
-        metrics_grid.addWidget(self.performance_trend,4,1,1,1)
+        metrics_grid.addWidget(self.time_trend,4,1,1,1)
         metrics_grid.addWidget(self.ai_time,5,1,1,1)
         metrics_grid.addWidget(self.deviance,6,1,1,1)
 
@@ -267,59 +277,7 @@ class CentralWidget(qtw.QWidget):
         metrics_groupbox.setFont(self.custom_style2)
         metrics_groupbox.setStyleSheet(box_style)
         return metrics_groupbox
-
-    def evo_module(self):
-        self.first_place = qtw.QLabel(f' 1st: -', self)
-        self.first_place.setFont(self.metric_font)
-        self.first_place.setStyleSheet(metric_style)
-        self.second_place = qtw.QLabel(f' 2nd: -', self)
-        self.second_place.setFont(self.metric_font)
-        self.second_place.setStyleSheet(metric_style)
-        self.third_place = qtw.QLabel(f' 3rd: -', self)
-        self.third_place.setFont(self.metric_font)
-        self.third_place.setStyleSheet(metric_style)        
-        self.fourth_place = qtw.QLabel(f' 4th: -', self)
-        self.fourth_place.setFont(self.metric_font)
-        self.fourth_place.setStyleSheet(metric_style)
-        self.fifth_place = qtw.QLabel(f' 5th: -', self)
-        self.fifth_place.setFont(self.metric_font)
-        self.fifth_place.setStyleSheet(metric_style)
-
-        self.loaded_seed = qtw.QLabel(f' Loaded State: -/-', self)
-        self.loaded_seed.setFont(self.metric_font)
-        self.loaded_seed.setStyleSheet(metric_style)
-        self.current_score = qtw.QLabel(f' Current Score: -/-', self)
-        self.current_score.setFont(self.metric_font)
-        self.current_score.setStyleSheet(metric_style)
-        self.cycles_since_save = qtw.QLabel(f' Last Evo Save: -', self)
-        self.cycles_since_save.setFont(self.metric_font)
-        self.cycles_since_save.setStyleSheet(metric_style)
-        self.standard_deviation = qtw.QLabel(f' StDev: -', self)
-        self.standard_deviation.setFont(self.metric_font)
-        self.standard_deviation.setStyleSheet(metric_style)
-        self.finish_cycles_avg = qtw.QLabel(f' Finish Cycles Avg: -', self)
-        self.finish_cycles_avg.setFont(self.metric_font)
-        self.finish_cycles_avg.setStyleSheet(metric_style)
-        
-        evo_grid = qtw.QGridLayout()
-        evo_grid.addWidget(self.first_place,1,0,1,1)
-        evo_grid.addWidget(self.second_place,2,0,1,1)
-        evo_grid.addWidget(self.third_place,3,0,1,1)
-        evo_grid.addWidget(self.fourth_place,4,0,1,1)
-        evo_grid.addWidget(self.fifth_place,5,0,1,1)
-
-        evo_grid.addWidget(self.loaded_seed,1,1,1,1)
-        evo_grid.addWidget(self.current_score,2,1,1,1)
-        evo_grid.addWidget(self.cycles_since_save,3,1,1,1)
-        evo_grid.addWidget(self.standard_deviation,4,1,1,1)
-        evo_grid.addWidget(self.finish_cycles_avg,5,1,1,1)
-
-        evo_groupbox = qtw.QGroupBox()
-        evo_groupbox.setLayout(evo_grid)
-        evo_groupbox.setFont(self.custom_style2)
-        evo_groupbox.setStyleSheet(box_style)
-        return evo_groupbox
-        
+  
     def update_gui(self):
         self.metrics = []
         #begin_time =time.time()
@@ -339,23 +297,47 @@ class CentralWidget(qtw.QWidget):
             for i in range(5):
                 #calculate resulting %
                 move_tracker_items[i]= str(round(self.metrics[25][i][0]/self.metrics[25][i][1]*100,2))#+"%"
-                
-            fail_rate = round(self.metrics[9][1]/sum(self.metrics[9])*100,2) #[positive count, negative count]
-            self.subtitlebar.setText(f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}')
+
+            #for readability; unpack into variables.
+            av = self.metrics[8] #actor value
+            av_avg = self.metrics[13] #actor value avg
+            cv = self.metrics[11] #critic value
+            cv_avg = self.metrics_last[16] #critic value avg
+            cc1 = self.metrics[6] #current cycle
+            cc2 = self.metrics[20] #gamecount
+            rs1 = self.metrics[1]
+            rs2 = self.metrics[3]
+            rs3 = self.metrics[24][0]
+            rs4 = self.metrics[24][1]
+            rs5 = round(self.metrics[24][0]-self.metrics[24][1],2)
+            ss1 = self.metrics[4]
+            ss2 = round(self.metrics[17],1)
+            time1 = str(timedelta(seconds=self.metrics[7]))
+            time2 = str(timedelta(seconds=self.metrics[15]))
+            ttrend1 = self.metrics[10]
+            ttrend2 = self.metrics[19]
+            laptxt1 = self.metrics[23][0]
+            laptxt2 = round(self.metrics[23][1],1)
+            fail_rate = (round(self.metrics[9][1] #[+ count, - count]
+                               /sum(self.metrics[9])*100,2)) 
+            lr = self.metrics[14] #learning Rate
+            gb = self.metrics[18] #game batch
+            sub_label = f' Learning Rate: {lr}      Game Batch: {gb}'
+            self.subtitlebar.setText(sub_label)
             #devaince(self.metrics[24]) = [current_total_rewards/current_total_time, avg_total_rewards/avg_total_time, deviance_limit]
             
             self.last_move.setText(f' Action: {self.action_set[action]}')
-            self.reward_scan.setText(f' Reward Scan: {self.metrics[1]}/{self.metrics[3]}')
-            self.deviance.setText(f' Reward/Second: {self.metrics[24][0]}/{self.metrics[24][1]}/{round(self.metrics[24][0]-self.metrics[24][1],2)} delta') #reward/timeseconds
-            self.critic_value.setText(f' Actor/Critic Value: {self.metrics[8]}/{self.metrics[11]}')
-            self.last_reset.setText(f' Subcycle/Seconds: {self.metrics[4]}/{round(self.metrics[17],1)}')
+            self.reward_scan.setText(f' Reward Scan: {rs1}/{rs2}')
+            self.deviance.setText(f' Reward/Second: {rs3}/{rs4}/{rs5} delta')
+            self.critic_value.setText(f' Actor/Critic Value: {av}/{cv}')
+            self.subcycle_seconds.setText(f' Subcycle/Seconds: {ss1}/{ss2}')
             self.fail_rate.setText(f' Fail Rate: {fail_rate}%')
-            self.current_cycle.setText(f' Current Cycle: {self.metrics[6]}/{self.metrics[20]}')
-            self.ai_time.setText(f' Time: {str(timedelta(seconds=self.metrics[7]))}/{str(timedelta(seconds=self.metrics[15]))}')
-            self.lap_metrics.setText(f' Lap: {self.metrics[23][0]}/{round(self.metrics[23][1],1)}')
-            self.performance_trend.setText(f' Time Trend: {self.metrics[10]}/{self.metrics[19]}')
+            self.current_cycle.setText(f' Current Cycle: {cc1}/{cc2}')
+            self.ai_time.setText(f' Time: {time1}/{time2}')
+            self.lap_metrics.setText(f' Lap: {laptxt1}/{laptxt2}')
+            self.time_trend.setText(f' Time Trend: {ttrend1}/{ttrend2}')
             self.cycles_per_second.setText(f' Cycles/Second: {self.metrics[12]}')
-            self.avg_qmax.setText(f' Actor/Critic Avg Qmax: {self.metrics[13]}/{self.metrics_last[16]}')
+            self.avg_qmax.setText(f' Actor/Critic Avg Qmax: {av_avg}/{cv_avg}')
 
             if not self.fast_mode:
                 self.reward_scan.setStyleSheet(self.color_coder(1, zero=True)) #Color Code reward_scans
@@ -397,7 +379,8 @@ class CentralWidget(qtw.QWidget):
                 self.circle.setPixmap(self.pixmap_dict[circle_pixmap])
 
             #Update per-game Graphs
-            if (self.metrics[20] != self.metrics_last[20]) and (self.metrics[6] > self.metrics[18]): #Once per game
+            if ((self.metrics[20] != self.metrics_last[20])
+                    and (self.metrics[6] > self.metrics[18])):
                 """## Racetime Update
                 self.graph_racetime_que1.append(self.metrics_last[17]) #race time
                 self.graph_racetime_que2.append(self.metrics[10]) #avg

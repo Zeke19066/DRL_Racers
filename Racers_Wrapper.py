@@ -73,13 +73,25 @@ class ScreenGrab():
         return img
 
     def resize(self, img, wrong_way_bool=False):
+        #resizing happens after the watermak has been added.
         img = np.array(img)
         img = cv2.resize(img, (self.xy, self.xy))
         img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         #equalize the image for greater contrast.
-        img = cv2.equalizeHist(img) 
-        if wrong_way_bool: 
+        img = cv2.equalizeHist(img)
+        if wrong_way_bool:
             img = ~img #invert image if we're going the wrong way.
+        
+        
+        #"""pre process.
+        mean1= np.mean([0.485, 0.456, 0.406])
+        mean = np.array([mean1])
+        std1 = np.mean([0.229, 0.224, 0.225])
+        std = np.array([std1])
+        img = std * img + mean
+        img = np.clip(img, 0, 1)
+        #"""
+        
         img = np.reshape(img, (self.xy, self.xy, 1))
         return img
         
@@ -636,6 +648,17 @@ class ScreenGrab():
                                       + alpha_inv * image[y1:y2, x1:x2, c])
 
         image = cv2.cvtColor(image, cv2.COLOR_RGBA2GRAY)
+        #cv2.imshow("cv2screen", image)
+        #cv2.waitKey(1)
+
+        #Normalize image.
+        mean1= np.mean([0.485, 0.456, 0.406])
+        mean = np.array([mean1])
+        std1 = np.mean([0.229, 0.224, 0.225])
+        std = np.array([std1])
+        image = std * image + mean
+        image = np.clip(image, 0, 1)
+
         image = np.reshape(image, (self.xy, self.xy, 1))
         return image
 

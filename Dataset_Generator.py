@@ -129,11 +129,11 @@ class Dataset_Generator():
                     cycles_per_second = round(frame_counter/time_delta,2)
                     print(f"Race Over! SaveRate:{cycles_per_second}frames/sec  Resetting....")
                     return
-            
+             
             time.sleep(self.timing_offset) #gets us into the framerate we want.
 
 if __name__ == "__main__":
     dataset = Dataset_Generator()
     while 1:
         dataset.Generator()
-        pass
+        

@@ -334,6 +334,7 @@ class CentralWidget(qtw.QWidget):
                 
             self.subtitlebar.setText(f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}')
 
+            self.last_move.setText(f' Action: {self.action_set[action]}')
             self.reward_scan.setText(f' Reward Scan: {self.metrics[1]}')
             self.total_reward.setText(f' Fail Streak Triple: {self.metrics[17][0]}/{self.metrics[17][1]}/{self.metrics[17][2]}')
             self.session_accuracy.setText(f' Accuracy Session: {self.metrics[3]}%')
@@ -391,7 +392,6 @@ class CentralWidget(qtw.QWidget):
                     color_set[action] = int(3)
 
                 #print(f'{action}  {color_set[action]}   2')
-                self.last_move.setText(f' Action: {self.action_set[action]}')
                 self.last_move.setStyleSheet(metric_style)
 
                 #action module color coding. Notice the +/- shifts along pixmap dict selection. 
@@ -806,7 +806,7 @@ class RewardPlotWidget(qtw.QWidget):
     def __init__(self, *args,
                 plot_layers, graph_label, 
                 label_1, label_2='blank', label_3='blank', label_4='blank',
-                y_min, y_max, left,
+                y_min, y_max, left, top=0.92, bottom=0.08,
                 **kwargs):
         super().__init__(*args, **kwargs)
         
@@ -819,7 +819,7 @@ class RewardPlotWidget(qtw.QWidget):
         self.y_min = y_min
         self.y_max = y_max
 
-        self.canvas = MplCanvas(self, width=1, height=1, dpi=180, left=left, right=0.98)
+        self.canvas = MplCanvas(self, width=1, height=1, dpi=180, left=left, right=0.98,top=top, bottom=bottom)
         self.xdata = []
         self.ydata1 = []
         self.ydata2 = []
@@ -1170,7 +1170,7 @@ class QuickImageWidget(qtw.QWidget):
 
         #now we're in the folder loading the file list
         os.chdir(self.home_dir)#home first
-        os.chdir("Dataset")
+        #os.chdir("Dataset")
         os.chdir(directory)
         self.file_list = os.listdir()
         self.file_list = natural_sorter(self.file_list)

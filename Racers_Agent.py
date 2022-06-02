@@ -33,7 +33,7 @@ class CNNActor(nn.Module):
         self.flat_size = 9216
 
         #in_channels, out_channels, kernel_size, stride, padding
-        self.conv1 = nn.Conv2d(4, 32, 8, 4) 
+        self.conv1 = nn.Conv2d(4, 32, 8, 4)
         self.conv2 = nn.Conv2d(32, 64, 4, 2)
         self.conv3 = nn.Conv2d(64, 64, 3, 1)
 
