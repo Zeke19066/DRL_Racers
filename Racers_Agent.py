@@ -188,23 +188,23 @@ class CNNMerge:
 
     def merge_models(self):
         self.parent_1 = CNNActor(4, self.num_actions,
-                        self.parameters_dict["learning_rate"],
+                        self.parameters_dict["actor_learning_rate"],
                         file_name='pretrained_model/Merge_Folder/parent1.pth')
         self.parent_2 = CNNActor(4, self.num_actions, 
-                        self.parameters_dict["learning_rate"],
+                        self.parameters_dict["actor_learning_rate"],
                         file_name='pretrained_model/Merge_Folder/parent2.pth')
         self.parent_3 = CNNActor(4, self.num_actions,
-                        self.parameters_dict["learning_rate"],
+                        self.parameters_dict["actor_learning_rate"],
                         file_name='pretrained_model/Merge_Folder/parent3.pth')
         self.parent_4 = CNNActor(4, self.num_actions,
-                        self.parameters_dict["learning_rate"],
+                        self.parameters_dict["actor_learning_rate"],
                         file_name='pretrained_model/Merge_Folder/parent4.pth')
         self.parent_5 = CNNActor(4, self.num_actions,
-                        self.parameters_dict["learning_rate"],
+                        self.parameters_dict["actor_learning_rate"],
                         file_name='pretrained_model/Merge_Folder/parent5.pth')
         self.merge_out = CNNActor(4, self.num_actions,
-                         self.parameters_dict["learning_rate"],
-                         file_name='pretrained_model/current_model_seed.pth')
+                         self.parameters_dict["actor_learning_rate"],
+                         file_name='pretrained_model/current_model_actor.pth')
     
         #convert tensors to numpy arrays
         np_parent_1 = self.model2numpy(self.parent_1)
@@ -222,6 +222,7 @@ class CNNMerge:
 
         #now convert nump array output to tensors in model.
         self.numpy2model(np_merge_output)
+        self.merge_save()
 
     def model2numpy(self, model):
         #converts the model tensors to NP arrays for easier merging.
@@ -236,8 +237,6 @@ class CNNMerge:
         np_model.append(np_conv3_weights)
         np_linear_weights = model.linear.weight.detach().cpu().numpy().astype('float32')
         np_model.append(np_linear_weights)
-        np_critic_linear_weights = model.critic_linear.weight.detach().cpu().numpy().astype('float32') 
-        np_model.append(np_critic_linear_weights)
         np_actor_linear_weights = model.actor_linear.weight.detach().cpu().numpy().astype('float32')
         np_model.append(np_actor_linear_weights)
 
@@ -250,8 +249,6 @@ class CNNMerge:
         np_model.append(np_conv3_bias)
         np_linear_bias = model.linear.bias.detach().cpu().numpy().astype('float32')
         np_model.append(np_linear_bias)
-        np_critic_linear_bias = model.critic_linear.bias.detach().cpu().numpy().astype('float32') 
-        np_model.append(np_critic_linear_bias)
         np_actor_linear_bias = model.actor_linear.bias.detach().cpu().numpy().astype('float32')
         np_model.append(np_actor_linear_bias)
 
@@ -276,42 +273,36 @@ class CNNMerge:
         self.merge_out.linear.weight = nn.Parameter(
                                      data=tensor_linear_weights,
                                      requires_grad=True)
-        tensor_critic_linear_weights = T.tensor(np_model[4], dtype=T.float)
-        self.merge_out.critic_linear.weight = nn.Parameter(
-                                            data=tensor_critic_linear_weights,
-                                            requires_grad=True)
-        tensor_actor_linear_weights = T.tensor(np_model[5], dtype=T.float)
+        tensor_actor_linear_weights = T.tensor(np_model[4], dtype=T.float)
         self.merge_out.actor_linear.weight = nn.Parameter(
                                            data=tensor_actor_linear_weights,
                                            requires_grad=True)
         
-        tensor_conv1_bias = T.tensor(np_model[6], dtype=T.float)
+        #now the biases
+        tensor_conv1_bias = T.tensor(np_model[5], dtype=T.float)
         self.merge_out.conv1.bias = nn.Parameter(
                                   data=tensor_conv1_bias,
                                   requires_grad=True)
-        tensor_conv2_bias = T.tensor(np_model[7], dtype=T.float)
+        tensor_conv2_bias = T.tensor(np_model[6], dtype=T.float)
         self.merge_out.conv2.bias = nn.Parameter(
                                   data=tensor_conv2_bias,
                                   requires_grad=True)
-        tensor_conv3_bias = T.tensor(np_model[8], dtype=T.float)
+        tensor_conv3_bias = T.tensor(np_model[7], dtype=T.float)
         self.merge_out.conv3.bias = nn.Parameter(
                                   data=tensor_conv3_bias,
                                   requires_grad=True)
-        tensor_linear_bias =  T.tensor(np_model[9], dtype=T.float)
+        tensor_linear_bias =  T.tensor(np_model[8], dtype=T.float)
         self.merge_out.linear.bias = nn.Parameter(
                                    data=tensor_linear_bias,
                                    requires_grad=True)
-        tensor_critic_linear_bias = T.tensor(np_model[10], dtype=T.float)
-        self.merge_out.critic_linear.bias = nn.Parameter(
-                                          data=tensor_critic_linear_bias,
-                                          requires_grad=True)
-        tensor_actor_linear_bias = T.tensor(np_model[11], dtype=T.float)
+        tensor_actor_linear_bias = T.tensor(np_model[9], dtype=T.float)
         self.merge_out.actor_linear.bias = nn.Parameter(
                                          data=tensor_actor_linear_bias,
                                          requires_grad=True)
         
+    def merge_save(self):
         print('... Merge complete: saving model ...')
-        name='pretrained_model/current_model_seed.pth'
+        name='pretrained_model/current_model_actor.pth'
         self.merge_out.save_checkpoint(file_name=name)
 
 class Agent:
@@ -518,7 +509,7 @@ class Agent:
 if __name__ == "__main__":
     parameters = {
         ## Hyperparameters:
-        'learning_rate':1e-6, #5e-6, 9e-6
+        'actor_learning_rate':1e-6, #5e-6, 9e-6
         'gamma': 0.975, #0.95; Discount Factor
         'tau': 0.975, #0.8, 0.65; Scaling parameter for GAE
         'beta':0.005, #0.01; Entropy coefficient; induces more random exploration
@@ -530,6 +521,6 @@ if __name__ == "__main__":
         'num_local_steps': 800, #Used for dataset learning. total learning steps at learn time.
     }
 
-    #merge = CNNMerge(parameters) #give it the whole dict.
-    #merge.merge_models()
-    agent = Agent(parameters, 10)
+    merge = CNNMerge(parameters,5) #give it the whole dict.
+    merge.merge_models()
+    #agent = Agent(parameters, 10)

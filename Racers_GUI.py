@@ -314,8 +314,8 @@ class CentralWidget(qtw.QWidget):
             ss2 = round(self.metrics[17],1)
             time1 = str(timedelta(seconds=self.metrics[7]))
             time2 = str(timedelta(seconds=self.metrics[15]))
-            ttrend1 = self.metrics[10]
-            ttrend2 = self.metrics[19]
+            ttrend1 = self.metrics[10] #avg race time len
+            ttrend2 = self.metrics[19] #avg finish time len
             laptxt1 = self.metrics[23][0]
             laptxt2 = round(self.metrics[23][1],1)
             fail_rate = (round(self.metrics[9][1] #[+ count, - count]

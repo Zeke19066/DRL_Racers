@@ -1,6 +1,5 @@
+from cv2 import Mat_MAGIC_VAL
 import Racers_Train as Racers_Train
-import Dataset_Generator
-
 import multiprocessing
 import os
 import time
@@ -8,7 +7,7 @@ import time
 #Note: Ensure DXWnd wrapper is open and calibrated correctly before launching.
 
 #Modes = "Train", "Train_Supervised", "Test"
-mode = "Train"
+mode = "Train_Supervised"
 
 def main(mode):
     print(f"Pre-Startup Mode:{mode}", end="")
@@ -43,7 +42,7 @@ def main(mode):
             time.sleep(1)
 
     elif mode == "Test":
-        import Racers_GUI
+    
         mode = 'test'
         #start the game
         

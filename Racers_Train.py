@@ -54,20 +54,21 @@ class ModelTrain():
         
         self.params = { ## User Set Training Hyperperameters & Game Parameters
             ##Hyperparameters
-            'actor_learning_rate':6e-6, #5e-6, 9e-6, 1e-6, 5e-4
+            'actor_learning_rate':5e-6, #5e-6, 9e-6, 1e-6, 5e-4
             'critic_learning_rate':9e-6, #5e-6, 9e-6, 1e-6, 5e-4
             'gamma': 0.98, #0.95; Discount Factor
-            'tau': 0.8, #0.8, 0.65; Scaling parameter for GAE aka lambda
-            'beta':0.06, #0.01; Entropy coefficient; induces more random exploration
-            'epsilon': 0.08, #parameter for Clipped Surrogate Objective
-            'epochs': 3, #3unsup, 1supervised;how many times do you want to learn from the data
+            'tau': 0.98, #0.8, 0.65; Scaling parameter for GAE aka lambda
+            'beta':0.03, #0.01; Entropy coefficient; induces more random exploration
+            'epsilon': 0.1, #parameter for Clipped Surrogate Objective
+            'epochs': 1, #3unsup, 1supervised;how many times do you want to learn from the data
             'cycle_limit': 20000000,
             'mini_batch_size': 200, #5; Used for dataset learning.
-            'num_local_steps': 800, #20; Used for dataset learning. total learning steps at learn time.
+            'num_local_steps': 800, #20; Used for dataset learning. total learning steps at learn time.]
+            'merge_pop': 5, #how many parents per merge.
 
             ##Game Parameters
             'min_reward':-0.5, 'max_reward':0.5, #what the rewards are scaled to
-            'reward_target': 750, #sets a minimum reward to save. Can be overwritten by higher avg.
+            'reward_target': 0, #sets a minimum reward to save. Can be overwritten by higher avg.
             'reward_rate_limit': 20, #5; see notes above. Threshold that will triger save-skip.
             'reward_mode':0, #0 is minmap, 1 is speedguage
             'negative_reward_tolerance': 250, #sum TOTAL negative rewards before reset?
@@ -75,7 +76,6 @@ class ModelTrain():
             'fail_time_limit': 10, #15; how many seconds of consecutive negative rewards before reset?
             'reward_ratio_limit': 0.75, #0.75; limit of % wrong answers.
             'stuck_limit': 250, #sum negative rewards consecutive before reset?
-            'last_place_limit':6000, #limit on consecutive 6th place cycles before reset.
             'off_track_start_1':4, #time in seconds
             #what bonus do we get by position? {1:1.75, 2:1, 3:0.25, 4:0}
             'place_bonus':{1:0.2, 2:0.1, 3:0.08, 4:0.06, 5:0.04, 6:0},
@@ -116,7 +116,8 @@ class ModelTrain():
             'critic_qmax_avg':0,
             'reward_rate': [0, 0], #[reward/time, rewardavg/timeavg]
             
-            'completion_que':deque(maxlen=25),
+            'completion_que':deque(maxlen=25), #
+            'completion_count':0, #how many races completed all laps.
             'reward_polarity': [0,0],#positive count, negative count of rewards.
             'repeat_counter': [0,0], #[current repeat, repeat limit]
             'quit_reset_bool': False,
@@ -127,6 +128,7 @@ class ModelTrain():
             'win_count': 0, 'loss_count':0, 'negative_reward_count': 0, #loss is permanent like win, fail is per 'session' and is reset
             }
 
+        #for individual entries
         self.benchmarks = {
             'total_reward_trend':0,
             'reward_rate':0,
@@ -139,8 +141,12 @@ class ModelTrain():
         self.counters_path = r'pretrained_model\counters.pkl'
         self.logger(mode='load')
 
+        #the aggregate of all entries.
         self.benchmarks_history = {'training_cycles':0,
-                                    'training_time':0}
+                                    'training_time':0,
+                                    'game_count':0,
+                                    'completion_count':0,
+                                    }
         
         self.show_me_stale = 0
         self.winrate = 0
@@ -193,6 +199,14 @@ class ModelTrain():
                                 - self.last_reset, 1)
             #Get NN output
             action, prob, crit_val, action_space = self.agent.choose_action(image_tensor)
+
+            ## Get qmax with decimal accuracy
+            action_space*= 10 #fast decimal, allows int detachment with accuracy.
+            action_space = action_space.detach().cpu().numpy().astype('int32') #its faster if we turn it into ints.float32, int32
+            action_space = action_space/10#now get it back to the right decimal place.
+            action_space = action_space[0]
+            qmax = np.max(action_space)
+
             self.controller.current_mapmode = self.params['reward_mode']
             self.np_action = action
 
@@ -243,10 +257,6 @@ class ModelTrain():
                 self.counters['quit_reset_bool'] = True
 
             ## Multiprocessing pipe to send metrics to GUI
-            #ints faster than float.
-            action_space = action_space.detach().cpu().numpy().astype('int32')
-            action_space=action_space[0]
-            qmax = np.max(action_space)
             gui_deviance = (self.counters['reward_rate']
                             +[self.params['reward_rate_limit']])
             self.counters['agent_qmax_list'].append(qmax)
@@ -270,7 +280,7 @@ class ModelTrain():
                 metrics = [ #Game Metrics
                     action, sub_reward,                                #0,1
                     [action_space],self.total_reward,                  #2,3            
-                    self.subcycle, self.counters['race_time_que_avg'], #4,5
+                    self.subcycle, 9999999,                            #4,5
                     self.counters['iteration'], self.total_time, qmax, #6-8
                     self.counters['reward_polarity'],                  #9
                     self.counters['race_time_que_avg'], int(crit_val), #10,11
@@ -337,11 +347,12 @@ class ModelTrain():
             terminal = self.counters['race_over_bool']
             self.agent.remember(image_tensor, self.action, prob, crit_val, reward, terminal)
             
-            ## A2C Learning structure
+            """ A2C Learning structure
             if self.counters['iteration'] % self.params['num_local_steps'] == 0:
                 #print("Learning......", end="")
-                self.agent.learn() #we learn once the race is over.
+                self.agent.learn()
                 #print("Done!")
+            """
 
             image_tensor = image_tensor_
             self.counters['iteration'] += 1
@@ -409,6 +420,10 @@ class ModelTrain():
                 self.counters['final_accuracy'] = round(self.counters['win_count']/self.screen.img_index*100,2)
                 print(f"Game Over!         Final Accuracy:{self.counters['final_accuracy']}%         25 Game Avg:{self.counters['accuracy_que_avg']}%")
 
+                print("Learning......", end="")
+                self.agent.learn() #we learn once the race is over.
+                print("Done!")
+
                 self.counters['win_count'] = 0
                 self.counters['final_reward_score'] = self.total_reward
                 self.counters['agent_qmax_list'], self.counters['critic_qmax_list'] = [], []
@@ -431,23 +446,9 @@ class ModelTrain():
         self.counters['game_time'] += int(self.race_time_delta)
         self.cycles_per_second = round(self.subcycle/self.race_time_delta,2)
 
-        ## Admission to the winner's circle.
-        reward_target = max(self.params['reward_target'],
-                            self.counters['reward_que_avg'])
-        if self.total_reward > reward_target and self.completion_bool:
-            #save the parent for a later merge.
-            merge_name = f"pretrained_model/Merge_Folder/parent{self.counters['parent_counter']}.pth"
-            self.agent.save_models(merge_name)
-            self.counters['parent_counter'] +=1
+        ## Call Learning
+        self.local_learn()
 
-        if self.counters['parent_counter'] != 6: #Learn if we're not merging.
-            print("Learning......", end="")
-            self.agent.learn() #we learn once the race is over.
-            print("Done!")
-        
-        else:#don't learn, the merge is due
-            self.agent.memory.clear_memory()
-        
         if self.counters['quit_reset_bool']:
             self.counters['quit_reset_bool'] = False
             self.controller.quit_Reset()
@@ -460,13 +461,14 @@ class ModelTrain():
         self.counters['race_time_que_avg'] = val
         self.counters['completion_que'].append(0)#assume we didnt finish
         if self.completion_bool: #we finished all laps
+            self.counters['completion_count'] += 1
             self.counters['completion_que'].pop()
             self.counters['completion_que'].append(1)
             self.counters['finish_time_que'].append(self.race_time_delta)
             val = round(np.mean(self.counters['finish_time_que']),1)
             self.counters['finish_time_que_avg'] = val
         
-        self.logger(mode='save')
+        self.logger(mode='save') #log before var reset below.
 
         for i in range(5):#handle the session_move_accuracy:
             double = self.counters['local_move_accuracy'][i]
@@ -487,18 +489,57 @@ class ModelTrain():
         self.last_reset = self.counters['iteration']
         self.subtime = datetime.now()
 
-        if self.counters['parent_counter'] == 6: #time to merge
+        return
+
+    def local_learn(self):
+        """
+        To begin, only racetime > average is required to become a parent.
+
+        Once we've finished (all laps) for more than 10 races, then
+        racetime < average and finishing is required to become a parent.
+        """
+        ## Admission to the winner's circle.
+        reward_target = max(self.params['reward_target'],
+                            self.counters['reward_que_avg'])
+
+        parent_bool = False
+        if (self.counters['completion_count'] < 10 
+            and self.race_time_delta > self.counters['race_time_que_avg']):
+            parent_bool = True
+            
+        elif (self.counters['completion_count'] >= 10 
+             and self.completion_bool 
+             and self.race_time_delta < self.counters['finish_time_que_avg']):
+            #then
+            parent_bool = True
+
+        #Save parent
+        if parent_bool:
+            #save the parent for a later merge.
+            label = self.counters['parent_counter']
+            merge_name = f"pretrained_model/Merge_Folder/parent{label}.pth"
+            #only the actor is merged.
+            self.agent.actor_model.save_checkpoint(file_name=merge_name)
+            print(f"Saving Parent:{label}")
+            self.counters['parent_counter'] += 1
+
+        #Learn if we're not merging.
+        if ((self.counters['parent_counter'] < (self.params['merge_pop']+1))
+            and self.race_time_delta > self.counters['race_time_que_avg']):
+            print("Learning......", end="")
+            self.agent.learn() #we learn once the race is over.
+            print("Done!")
+        else:#don't learn, a merge is due
+            self.agent.memory.clear_memory()
+
+        #Merge
+        if self.counters['parent_counter'] == (self.params['merge_pop']+1): #time to merge
             self.counters['parent_counter'] = 1 #reset the counter
             self.agent.merge_models()
             #saving here would overwrite the merge^
         else:
             self.agent.save_models()
-        return
-
-    def local_learn(self):
-        pass
-
-
+        
     ##Rules Block
     def local_rules_minmap(self,reward_scan, wrong_way_bool):
         #Rewerds occur in 2/-2 range and are scaled up do the max/min range.
@@ -850,13 +891,17 @@ class ModelTrain():
             #Update Benchmarks;
             self.benchmarks_history['training_cycles'] += self.subcycle 
             self.benchmarks_history['training_time'] += self.race_time_delta
+            self.benchmarks_history['game_count'] += 1
+            if self.completion_bool:
+                self.benchmarks_history['completion_count'] += 1
+
             self.benchmarks['reward_rate'] = self.counters['reward_rate']
             self.benchmarks['total_reward_trend'] = self.counters['reward_que_avg']
             self.benchmarks['race_time_trend'] = self.counters['race_time_que_avg']
             self.benchmarks['completion_trend'] = round(sum(self.counters['completion_que'])
                                                         /len(self.counters['completion_que'])
                                                         *100,2)
-            key = self.benchmarks_history['training_cycles']
+            key = self.benchmarks_history['game_count']
             self.benchmarks_history[key] = self.benchmarks
             
             ##Save Counters & Benchmarks JSON
