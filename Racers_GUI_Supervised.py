@@ -79,8 +79,8 @@ class CentralWidget(qtw.QWidget):
         self.click_set = ['null', 'color: rgb(33, 37, 43);', 'color: rgb(255,255,255);', 'color: rgb(80,167,239);']
         self.action_set = ['Forward', 'Powerup', 'Reverse', 'Left', 'Right']
         
-
-        self.metrics_last = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] #initialize empty.
+        self.metrics_last = [0 for n in range(100)] #initialize empty.
+        self.action_repeat_count = 0
 
         #graph Prepp
         #plt.style.use('dark_background')  #after later style overwrites, this only makes the grid white vs grey.
@@ -256,59 +256,7 @@ class CentralWidget(qtw.QWidget):
         metrics_groupbox.setFont(self.custom_style2)
         metrics_groupbox.setStyleSheet(box_style)
         return metrics_groupbox
-
-    def evo_module(self):
-        self.first_place = qtw.QLabel(f' 1st: -', self)
-        self.first_place.setFont(self.metric_font)
-        self.first_place.setStyleSheet(metric_style)
-        self.second_place = qtw.QLabel(f' 2nd: -', self)
-        self.second_place.setFont(self.metric_font)
-        self.second_place.setStyleSheet(metric_style)
-        self.third_place = qtw.QLabel(f' 3rd: -', self)
-        self.third_place.setFont(self.metric_font)
-        self.third_place.setStyleSheet(metric_style)        
-        self.fourth_place = qtw.QLabel(f' 4th: -', self)
-        self.fourth_place.setFont(self.metric_font)
-        self.fourth_place.setStyleSheet(metric_style)
-        self.fifth_place = qtw.QLabel(f' 5th: -', self)
-        self.fifth_place.setFont(self.metric_font)
-        self.fifth_place.setStyleSheet(metric_style)
-
-        self.loaded_seed = qtw.QLabel(f' Loaded State: -/-', self)
-        self.loaded_seed.setFont(self.metric_font)
-        self.loaded_seed.setStyleSheet(metric_style)
-        self.current_score = qtw.QLabel(f' Current Score: -/-', self)
-        self.current_score.setFont(self.metric_font)
-        self.current_score.setStyleSheet(metric_style)
-        self.cycles_since_save = qtw.QLabel(f' Last Evo Save: -', self)
-        self.cycles_since_save.setFont(self.metric_font)
-        self.cycles_since_save.setStyleSheet(metric_style)
-        self.standard_deviation = qtw.QLabel(f' StDev: -', self)
-        self.standard_deviation.setFont(self.metric_font)
-        self.standard_deviation.setStyleSheet(metric_style)
-        self.finish_cycles_avg = qtw.QLabel(f' Finish Cycles Avg: -', self)
-        self.finish_cycles_avg.setFont(self.metric_font)
-        self.finish_cycles_avg.setStyleSheet(metric_style)
-        
-        evo_grid = qtw.QGridLayout()
-        evo_grid.addWidget(self.first_place,1,0,1,1)
-        evo_grid.addWidget(self.second_place,2,0,1,1)
-        evo_grid.addWidget(self.third_place,3,0,1,1)
-        evo_grid.addWidget(self.fourth_place,4,0,1,1)
-        evo_grid.addWidget(self.fifth_place,5,0,1,1)
-
-        evo_grid.addWidget(self.loaded_seed,1,1,1,1)
-        evo_grid.addWidget(self.current_score,2,1,1,1)
-        evo_grid.addWidget(self.cycles_since_save,3,1,1,1)
-        evo_grid.addWidget(self.standard_deviation,4,1,1,1)
-        evo_grid.addWidget(self.finish_cycles_avg,5,1,1,1)
-
-        evo_groupbox = qtw.QGroupBox()
-        evo_groupbox.setLayout(evo_grid)
-        evo_groupbox.setFont(self.custom_style2)
-        evo_groupbox.setStyleSheet(box_style)
-        return evo_groupbox
-        
+ 
     def update_gui(self):
 
         self.metrics = []
@@ -325,6 +273,11 @@ class CentralWidget(qtw.QWidget):
 
             #Update Metrics:
             action =  self.metrics[0]
+            if action == self.metrics_last[0]:
+                self.action_repeat_count += 1
+            else: 
+                self.action_repeat_count = 0
+                
 
             #this calculates percentages from the other two items in the original entry.
             move_tracker_items = {0:0, 1:0, 2:0, 3:0, 4:0}
@@ -334,7 +287,7 @@ class CentralWidget(qtw.QWidget):
                 
             self.subtitlebar.setText(f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}')
 
-            self.last_move.setText(f' Action: {self.action_set[action]}')
+            self.last_move.setText(f' Action: {self.action_set[action]}({self.action_repeat_count})')
             self.reward_scan.setText(f' Reward Scan: {self.metrics[1]}')
             self.total_reward.setText(f' Fail Streak Triple: {self.metrics[17][0]}/{self.metrics[17][1]}/{self.metrics[17][2]}')
             self.session_accuracy.setText(f' Accuracy Session: {self.metrics[3]}%')

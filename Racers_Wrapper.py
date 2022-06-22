@@ -30,6 +30,10 @@ class ScreenGrab():
     def __init__(self, dataset_mode = "Solo"):
         self.xy = 128  #downsize to 128x128px
         self.dataset_mode = dataset_mode #Solo, Group
+        self.data_metrics = {'Forward':0, 'Powerup':0, 'Reverse':0,
+                             'Left':0, 'Right':0} #stores action percentages
+        self.data_labels =  ['Forward', 'Powerup', 'Reverse',
+                             'Left', 'Right']
         self.home_dir = os.getcwd()
 
         #-1 is for alpha channel.
@@ -108,6 +112,8 @@ class ScreenGrab():
 
         #used to get the human actions from filenames
         def meta_extractor(filename_list):
+            self.data_metrics = {'Forward':0, 'Powerup':0, 'Reverse':0,
+                                 'Left':0, 'Right':0} #stores action %
             action_list = []
             for filename in filename_list:
                 out = []
@@ -121,13 +127,21 @@ class ScreenGrab():
                     if c ==",":
                         demarcation_bool = True
                 answer = "".join(out)
+                dict_key = self.data_labels[int(answer)]
+                self.data_metrics[dict_key] += 1
                 action_list.append(answer)
+            
+            total = len(action_list)
+            for dict_key in self.data_labels:
+                percent = round(self.data_metrics[dict_key]/total*100,2)
+                self.data_metrics[dict_key] = percent
             return action_list
 
         if reset:
-            self.img_index=0
+            self.img_index = 0
 
         if first_run:
+            print("")
             print("Initializing Dataset....", end="")
             #Chose the random folder and load the first image.
             os.chdir(self.home_dir)
@@ -144,6 +158,8 @@ class ScreenGrab():
             self.file_list = natural_sorter(self.file_list)
             #make a seperate list of actions from filename
             self.action_list = meta_extractor(self.file_list)
+
+
             #preload all the images:
             self.frame_buffer = []
             for file_name in self.file_list:
@@ -155,9 +171,11 @@ class ScreenGrab():
                 self.frame_buffer.append(sub_frame)
 
             self.img_index = 0
-            print("Done -Length:",len(self.action_list))
+            self.data_len = len(self.action_list)
+            print("Done -Length:", self.data_len)
+            print("Dataset Action Distribution %:", self.data_metrics)
 
-        if self.img_index >= len(self.file_list)-1:
+        if self.img_index >= self.data_len-1:
             gameover_bool = True
             print("Attempting Game-Over")
         current_image = self.frame_buffer[self.img_index]

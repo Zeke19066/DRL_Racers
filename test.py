@@ -1,8 +1,11 @@
+import numpy as np
 from collections import deque
 
-que = deque(maxlen=25)
+placements = deque(maxlen=5)
+placements.append([20,30,40])
+placements.append([20,30,50])
+placements.append([10,40,20])
 
-print(type(que))
-
-if str(type(que)) == "<class 'collections.deque'>":
-    print("DING")
+place = np.array(placements)
+new_place = place.transpose()
+print(new_place)

@@ -1,4 +1,4 @@
-from cv2 import Mat_MAGIC_VAL
+#from cv2 import Mat_MAGIC_VAL
 import Racers_Train as Racers_Train
 import multiprocessing
 import os
@@ -7,9 +7,9 @@ import time
 #Note: Ensure DXWnd wrapper is open and calibrated correctly before launching.
 
 #Modes = "Train", "Train_Supervised", "Test"
-mode = "Train_Supervised"
+mode = "Train"
 
-def main(mode):
+def main(mode):                        
     print(f"Pre-Startup Mode:{mode}", end="")
 
     if mode == "Train":

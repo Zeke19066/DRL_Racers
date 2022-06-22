@@ -175,7 +175,7 @@ class CentralWidget(qtw.QWidget):
 
         self.central_widget_layout.addWidget(self.new_button("quit_button"), 4, 6, 1, 2)
         self.central_widget_layout.addWidget(self.new_button("fast_button"), 4, 8, 1, 2)
-        self.button_click(mode="fast_button")
+        #self.button_click(mode="fast_button") #this will launch in fast mode.
 
 
         self.timer = qtc.QTimer()
@@ -311,7 +311,7 @@ class CentralWidget(qtw.QWidget):
             rs4 = self.metrics[24][1]
             rs5 = round(self.metrics[24][0]-self.metrics[24][1],2)
             ss1 = self.metrics[4]
-            ss2 = round(self.metrics[17],1)
+            ss2 = round(self.metrics[17],1) #Race time sum
             time1 = str(timedelta(seconds=self.metrics[7]))
             time2 = str(timedelta(seconds=self.metrics[15]))
             ttrend1 = self.metrics[10] #avg race time len
@@ -320,9 +320,11 @@ class CentralWidget(qtw.QWidget):
             laptxt2 = round(self.metrics[23][1],1)
             fail_rate = (round(self.metrics[9][1] #[+ count, - count]
                                /sum(self.metrics[9])*100,2)) 
-            lr = self.metrics[14] #learning Rate
-            gb = self.metrics[18] #game batch
-            sub_label = f' Learning Rate: {lr}      Game Batch: {gb}'
+            lr = self.metrics[14][0] #learning Rate
+            gb = self.metrics[14][1] #game batch
+            epochs = self.metrics[14][2] #epochs
+            loss_print = self.metrics[5]
+            sub_label = f' Learning Rate: {lr}      Epochs: {epochs}       {loss_print}'
             self.subtitlebar.setText(sub_label)
             #devaince(self.metrics[24]) = [current_total_rewards/current_total_time, avg_total_rewards/avg_total_time, deviance_limit]
             
@@ -380,7 +382,7 @@ class CentralWidget(qtw.QWidget):
 
             #Update per-game Graphs
             if ((self.metrics[20] != self.metrics_last[20])
-                    and (self.metrics[6] > self.metrics[18])):
+                    and (self.metrics[6] > gb)):
                 """## Racetime Update
                 self.graph_racetime_que1.append(self.metrics_last[17]) #race time
                 self.graph_racetime_que2.append(self.metrics[10]) #avg

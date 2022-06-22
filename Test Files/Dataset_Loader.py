@@ -69,7 +69,7 @@ class Image_Loader():
     def analyzer(self):
         #Get all the file names for all of the dataset folders.
         os.chdir("..")#move up one directory level.
-        os.chdir("Dataset")
+        os.chdir("Dataset\Solo")
         folder_list = os.listdir()
         all_files_list = []
         for folder in folder_list:

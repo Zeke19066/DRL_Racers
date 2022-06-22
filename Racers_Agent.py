@@ -317,13 +317,15 @@ class Agent:
         self.gae_lambda = parameters_dict["tau"]
         self.beta = parameters_dict["beta"]
         self.parameters_dict = parameters_dict
-        self.actor_loss_que = deque(maxlen=100)
-        self.critic_loss_que = deque(maxlen=100)
-        self.entropy_loss_que = deque(maxlen=100)
+        que_len = round(self.n_epochs*25)
+        self.actor_loss_que = deque(maxlen=que_len)
+        self.critic_loss_que = deque(maxlen=que_len)
+        self.entropy_loss_que = deque(maxlen=que_len)
 
         self.initial_state_bool = True
         self.state_tensor = []
         self.state_array = []
+        self.loss_print = ""
         #we average 30 cycles/second;yields 1 sec ref window to sample.
         self.complex_buffer = deque(maxlen=30) 
 
@@ -367,6 +369,10 @@ class Agent:
         return action, probs, value, action_space
 
     def learn(self):
+        session_actor_loss = []
+        session_critic_loss = []
+        session_entropy_loss = []
+
 
         #subfunction for so len(data)%batch size = 0; evenly trims for zero remainder.
         #even though the mask is generated each time, its set to len&divisor. Same len&divisor = same mask every time.
@@ -444,8 +450,14 @@ class Agent:
                 entropy_loss = (self.beta * entropy_loss) #subtract this
                 actor_loss = -T.min(weighted_probs,
                                     weighted_clip_probs).mean()
-                #+entropy == -loss
-                actor_loss = actor_loss-entropy_loss
+                #save version w/o entropy credit
+                actor_loss_copy = T.clone(actor_loss).to(self.critic_model.device)
+
+                #we want a net credit towards zero
+                if actor_loss < 0:
+                    actor_loss = actor_loss+entropy_loss
+                if actor_loss >= 0:
+                    actor_loss = actor_loss-entropy_loss
 
                 ## Calculate the Critic Loss.
                 returns = advantage[batch] + values[batch]
@@ -466,24 +478,38 @@ class Agent:
                 self.actor_model.optimizer.step()
                 self.critic_model.optimizer.step()
 
-                actor_loss = actor_loss+entropy_loss #take the entropy back out for better insight.
+                #take the entropy back out for better insight.
+                actor_loss = actor_loss_copy
                 actor_loss = actor_loss.detach().cpu().numpy().astype('float32')
                 actor_loss = round(float(actor_loss),4)
                 critic_loss = critic_loss.detach().cpu().numpy().astype('float32')
                 critic_loss = round(float(critic_loss),4)
                 entropy_loss = entropy_loss.detach().cpu().numpy().astype('float32')
                 entropy_loss = round(float(entropy_loss),4)
+                session_actor_loss.append(actor_loss)
                 self.actor_loss_que.append(actor_loss)
+                session_critic_loss.append(critic_loss)
                 self.critic_loss_que.append(critic_loss)
+                session_entropy_loss.append(entropy_loss)
                 self.entropy_loss_que.append(entropy_loss)
             print(f"...{epoch+1}/{self.n_epochs}", end="")
         
+
+        #we're generating the string so for the GUI as well.
         print("...Epochs Complete")
-        print("Loss Check(Avg 100)...", end="")
-        print(f"Actor:{round(np.mean(self.actor_loss_que),4)}; ", end="")
-        print(f"Critic:{round(np.mean(self.critic_loss_que),4)}; ", end="")
-        print(f"Entropy:{round(np.mean(self.entropy_loss_que),4)}")
-        self.memory.clear_memory()          
+        print_1 = "Loss Check(Session/Avg 25)..."
+        val1 = round(np.mean(session_actor_loss),4)
+        val2 = round(np.mean(self.actor_loss_que),4)
+        print_2 = f"Actor: {val1}/{val2}; "
+        val1 = round(np.mean(session_critic_loss))
+        val2 = round(np.mean(self.critic_loss_que))
+        print_3 = f"Critic: {val1}/{val2}; "
+        val1 = round(np.mean(session_entropy_loss),4)
+        val2 = round(np.mean(self.entropy_loss_que),4)
+        print_4 = f"Entropy: {val1}/{val2}"
+        self.loss_print = print_1 + print_2 + print_3 + print_4
+        print(self.loss_print)
+        self.memory.clear_memory()
 
     def image_to_tensor(self, image):
         #4 frames are staggered across time. 30cycles/second = 30 frame buffer of 1 second. We select frames 
