@@ -59,12 +59,12 @@ class ModelTrain():
         self.params = { ## User Set Training Hyperperameters & Game Parameters
             ##Hyperparameters
             'actor_learning_rate':7e-7, #5e-6, 9e-6, 1e-6, 5e-4
-            'critic_learning_rate':2e-6, #5e-6, 9e-6, 1e-6, 5e-4
-            'gamma': 0.98, #0.95; Discount Factor
+            'critic_learning_rate':7e-7, #5e-6, 9e-6, 1e-6, 5e-4
+            'gamma': 0.995, #0.95; Discount Factor
             'tau': 0.98, #0.8, 0.65; Scaling parameter for GAE aka lambda
-            'beta':1, #0.01; Entropy coefficient; induces more random exploration
+            'beta': 2, #0.01; Entropy coefficient; induces more random exploration
             'epsilon': 0.1, #parameter for Clipped Surrogate Objective
-            'epochs': 5, #5unsup, 1supervised;how many times do you want to learn from the data
+            'epochs': 2, #5unsup, 1supervised;how many times do you want to learn from the data
             'cycle_limit': 20000000,
             'mini_batch_size': 200, #5; Used for dataset learning.
             'num_local_steps': 800, #20; Used for dataset learning. total learning steps at learn time.]
@@ -77,7 +77,7 @@ class ModelTrain():
             'reward_mode':0, #0 is minmap, 1 is speedguage
             'negative_reward_limit': 500, #sum TOTAL negative rewards before reset?
             'lap_time_limit': 120, #90; max time per lap before we time-out reset.
-            'fail_time_limit': 10, #15; how many seconds of consecutive negative rewards before reset?
+            'fail_time_limit': 3, #10; how many seconds of consecutive negative rewards before reset?
             'reward_ratio_limit': 0.95, #0.75; limit of % wrong answers.
             'stuck_limit': 250, #sum negative rewards consecutive before reset?
             'off_track_start_1':4, #time in seconds
@@ -105,11 +105,11 @@ class ModelTrain():
             'last_place_counter':0,#count consecutive cycles in last place
             'final_reward_score':0, #total reward at last reset.
             #each que contains [miss count, total count] for each game
-            'session_move_accuracy': {0:deque([[0,0]],maxlen=25), 
-                                    1:deque([[0,0]],maxlen=25), 2:deque([[0,0]],maxlen=25),
-                                    3:deque([[0,0]],maxlen=25), 4:deque([[0,0]],maxlen=25)}, 
+            'session_move_accuracy': [deque([[0,1]],maxlen=25), 
+                                      deque([[0,1]],maxlen=25), deque([[0,1]],maxlen=25),
+                                      deque([[0,1]],maxlen=25), deque([[0,1]],maxlen=25)], 
             #[miss count, total count] for current game. Aggregated w/ above^
-            'local_move_accuracy':{0:[0,1], 1:[0,1], 2:[0,1], 3:[0,1], 4:[0,1]}, 
+            'local_move_accuracy':[[0,1], [0,1], [0,1], [0,1], [0,1]], 
             
             'reward_que':deque(maxlen=25),
             'reward_que_avg': 1,
@@ -129,7 +129,7 @@ class ModelTrain():
             'plus_avg':0,
             
             #supervised counters
-            'session_move_dist':deque(maxlen=25), #move dist for the last 25 games.
+            'session_move_dist':deque([[0,0,0,0,0]], maxlen=25), #move dist for the last 25 games.
             'local_move_dist':[0,0,0,0,0], #move dist for this race.
 
             'completion_que':deque(maxlen=25), #
@@ -156,6 +156,7 @@ class ModelTrain():
         ##Load Counters & Benchmarks JSON
         self.benchmarks_path = r'pretrained_model\benchmarks.json'
         self.counters_path = r'pretrained_model\counters.pkl'
+        self.home_dir = os.getcwd()
         self.logger(mode='load')
 
         #the aggregate of all entries.
@@ -164,16 +165,15 @@ class ModelTrain():
                                     'game_count':0,
                                     'completion_count':0,
                                     }
-        
-        self.show_me_stale = 0
+
         self.accuracy = 0
         self.first_run = True
         self.main_mode = mode
         self.cycles_per_second = "Initializing"
         self.file_name = ""
-        self.home_dir = os.getcwd()
-        self.total_move_accuracy = {0:[0,0], 1:[0,0], 2:[0,0], 
-                                    3:[0,0], 4:[0,0]}
+        self.total_move_accuracy = [[0,0], [0,0], [0,0], 
+                                    [0,0], [0,0]]
+        self.total_move_dist = [0,0,0,0,0]
 
         print('... launching Agent', end="")
         self.agent = Agent(self.params, num_actions=5)
@@ -232,7 +232,7 @@ class ModelTrain():
             ## Get qmax with decimal accuracy
             action_space*= 10 #fast decimal, allows int detachment with accuracy.
             action_space = action_space.detach().cpu().numpy().astype('int32') #its faster if we turn it into ints.float32, int32
-            #action_space = action_space/10#now get it back to the right decimal place.
+            action_space = action_space/10#now get it back to the right decimal place.
             action_space = action_space[0]
             qmax = np.max(action_space)
 
@@ -355,7 +355,9 @@ class ModelTrain():
         self.total_reward = 1
         self.subcycle = 0
         self.last_reset = self.counters['iteration']
+        self.last_learn = 0
         reward_scan, self.shot_counter = 0, 0
+        self.counters['reward_polarity'] = [0,0]
 
         self.agent.initial_state_bool = True
         self.counters['fail_streak_triple'][1] = 0 #reset the session failstreak
@@ -398,7 +400,9 @@ class ModelTrain():
             self.agent.remember(image_tensor, self.action, prob, crit_val, reward, terminal)
             
             #""" A2C Learning structure
-            if self.counters['iteration'] % self.params['num_local_steps'] == 0:
+            if (self.screen.img_index - self.last_learn > 500
+                 and self.completion_percent % 25 == 0):
+                self.last_learn = self.screen.img_index
                 #print("Learning......", end="")
                 self.agent.learn()
                 #print("Done!")
@@ -415,12 +419,16 @@ class ModelTrain():
             action_space = action_space[0]
             qmax = np.max(action_space)
             value = int(crit_val)
+            
+            if self.subcycle % 5 == 0:
+                subtime = int((datetime.now() - start).total_seconds())
+                total_time = subtime + self.counters['hist_time']
+                self.counters['total_time'] = total_time
 
-            self.counters['total_time'] = int((datetime.now() - start).total_seconds())
             var = self.counters['reward_polarity'][0]/self.screen.img_index
             self.accuracy = round(var*100,2) #subcycle would include failed repeats in the accuracy.
-            completion_percent = round(self.screen.img_index/len(self.screen.action_list)*100)
-            frame_double = [self.screen.img_index,completion_percent]
+            self.completion_percent = round(self.screen.img_index/len(self.screen.action_list)*100)
+            frame_double = [self.screen.img_index,self.completion_percent]
             image_double = [self.screen.subfolder, self.screen.img_index] #directory, frame#
             self.counters['agent_qmax_list'].append(qmax)
             self.counters['agent_qmax_avg'] = round(np.mean(self.counters['agent_qmax_list']),1)
@@ -433,16 +441,26 @@ class ModelTrain():
 
             try:
                 metrics = [ #Game Metrics
-                    self.np_action, reward, [action_space], self.accuracy, self.subcycle,                                     # 0-4
-                    self.counters['race_time_que_avg'], self.counters['iteration'], self.counters['total_time'], qmax,   # 5-8
-                    self.params['mini_batch_size'], self.counters['accuracy_que_avg'], value,              # 9-11
-                    self.cycles_per_second, self.counters['agent_qmax_avg'],                                    # 12-13
-                    
-                    self.params['actor_learning_rate'], self.counters['game_time'],                               # 14-15
-                    self.counters['final_accuracy'], self.counters['fail_streak_triple'],                       # 16-17
-                    self.params['mini_batch_size'], self.counters['finish_time_que_avg'],                # 18-19
-                    self.counters['game_count'], self.total_move_accuracy, dataset_path,               # 20-22
-                    frame_double, self.counters['critic_qmax_avg']                                              # 23-24
+                    self.np_action, reward, [action_space],     #0-2
+                    self.accuracy, self.subcycle,               #3,4
+                    self.counters['race_time_que_avg'],         #5
+                    self.counters['iteration'],                 #6
+                    self.counters['total_time'], qmax,          #7,8
+                    self.params['mini_batch_size'],             #9
+                    self.counters['accuracy_que_avg'],          #10
+                    value, self.cycles_per_second,              #11,12
+                    self.counters['agent_qmax_avg'],            #13
+                    self.params['actor_learning_rate'],         #14
+                    self.counters['game_time'],                 #15
+                    self.counters['final_accuracy'],            #16
+                    self.counters['fail_streak_triple'],        #17
+                    self.params['mini_batch_size'],             #18
+                    self.counters['finish_time_que_avg'],       #19
+                    self.counters['game_count'],                #20
+                    self.total_move_accuracy,                   #21
+                    dataset_path, frame_double,                 #22,23
+                    self.counters['critic_qmax_avg'],           #24
+                    self.total_move_dist                        #25
                     ]
 
                 self.gui_send(send_connection, metrics)
@@ -459,7 +477,12 @@ class ModelTrain():
                 for i in range(5): #For current game
                     double = self.counters['local_move_accuracy'][i]
                     self.counters['session_move_accuracy'][i].append(double)
-                self.counters['local_move_accuracy'] = {0:[0,1], 1:[0,1], 2:[0,1], 3:[0,1], 4:[0,1]}
+                self.counters['local_move_accuracy'] = [[0,1], [0,1], [0,1], [0,1], [0,1]]
+
+                #handle the move-dist:
+                dist = self.counters['local_move_dist']
+                self.counters['session_move_dist'].append(dist)
+                self.counters['local_move_dist'] = [0,0,0,0,0]
 
                 #self.total_reward = max(self.total_reward,10) #set a floor of 10.
                 self.counters['game_count'] += 1
@@ -480,12 +503,10 @@ class ModelTrain():
                 print("Done!")
                 """
 
-                self.counters['win_count'] = 0
                 self.counters['final_reward_score'] = self.total_reward
                 self.counters['agent_qmax_list'], self.counters['critic_qmax_list'] = [], []
                 self.counters['reward_polarity'] = [0,0]
                 self.total_reward = 0
-                self.counters['local_move_dist'] = [0,0,0,0,0]
                 self.counters['back_on_track_bonus'] = 0
                 self.counters['negative_reward_count'] = 0
                 self.last_reset = self.counters['iteration']
@@ -620,8 +641,8 @@ class ModelTrain():
     def local_rules_minmap(self,reward_scan, wrong_way_bool):
         #Rewerds occur in 2/-2 range and are scaled to the max/min range.
         terminal, endgame_attempt, side_glitch_bool = False, False, False
-        self.total_move_accuracy = {0:[0,0], 1:[0,0], 2:[0,0], 
-                                    3:[0,0], 4:[0,0]}
+        self.total_move_accuracy = [[0,0], [0,0], [0,0], 
+                                    [0,0], [0,0]]
         side_set = (2,3,4) #left, right, reverse
         reward, place = reward_scan, 6
         lap_bonus_bool, lap_reward = False, 1
@@ -758,7 +779,7 @@ class ModelTrain():
             
         ##prevent early reset.
         if (endgame_attempt 
-            and (self.race_time_delta > self.params['fail_time_limit']
+            and (self.race_time_delta > 10
                  or self.counters['lap']>1)):
             terminal = True
             self.counters['reset_bool'] = True
@@ -875,7 +896,7 @@ class ModelTrain():
     def local_rules_dataset(self, agent_action, human_action):
         """
         Since turning is volitile, we need to over-represent turns and underrepresent going straight.
-        We will set a target distribution of the moveset, and use repeats on failed moves shift the
+        We will set a target distribution of the moveset, and use repeats on failed moves to shift the
         agents experience towards the target distribution. To achieve this, we will track the actual
         experienced distribution against the target, and ration repeats towards that goal.
         We will track:
@@ -902,17 +923,17 @@ class ModelTrain():
                                      Right: 14.14%}
         """
 
-        repeat_max = 10 #Maximum number of repeats. actual limit will be fail rate * repeat max. 
-        mistake_tolerance = 0.0 #0.20; what % of moves can we miss before a miss triggers a repeat for that move?
+        repeat_max = 10 #Maximum number of repeats.
+        mistake_tolerance = 0.2 #0.20; what % of moves can we miss before a miss triggers a repeat for that move?
         repeat_bool = False
-        accuracy_target = 30
-        #             forward  left  right
-        target_dist = {0:0.2, 3:0.45, 4:0.35}
+        target_dist = {0:0.2, 1:0, 2:0, 3:0.45, 4:0.35}
 
-        self.total_move_accuracy = {0:[0,0], 1:[0,0],
-                                    2:[0,0], 3:[0,0], 4:[0,0]}
+        self.total_move_accuracy = [[0,0], [0,0],
+                                    [0,0], [0,0], [0,0]]
         
-        #combine the aggreagate with the current game.
+        self.total_move_dist = [0,0,0,0,0]
+
+        #determine the aggreagate accuracy.
         for i in range(5): #it's a 5 item number-key dict. For agg
             temp_que = list(self.counters['session_move_accuracy'][i])
             for double in temp_que:
@@ -922,60 +943,77 @@ class ModelTrain():
             double = self.counters['local_move_accuracy'][i]
             self.total_move_accuracy[i][0] += double[0]
             self.total_move_accuracy[i][1] += double[1]
+        
+        #determine the aggregate move-dist.
+        temp_dist = np.array(self.counters['session_move_dist'])
+        temp_dist = temp_dist + np.array(self.counters['local_move_dist'])
+        move_dist = temp_dist.transpose() #arrange by index
+        total = np.sum(move_dist)
+        for i in range(5):
+            self.total_move_dist[i] = round(np.sum(move_dist[i])/total,3)
 
 
-        #update the local move counter .......move:[miss count, total count]
-        self.counters['local_move_accuracy'][human_action][1] += 1 
+        """ Repeats happen no matter what now.
+        #determine how many repeats is limit:
+        delta = target_dist[human_action]-self.total_move_dist[human_action]
+        delta = max(0,delta)
+        #like c map function:(input val, [in_min,in_max],[out_min,out_max])
+        limit = np.interp(delta, [0, 0.25], [0, repeat_max]) 
 
-        #Agent guessed correct (no repeat)
+        self.counters['repeat_counter'][1] = limit
+
+        #now handle the repeats
+        if self.counters['game_count'] >= 2:
+            self.counters['repeat_counter'][0] += 1
+            if self.counters['repeat_counter'][0] <= self.counters['repeat_counter'][1]:
+                repeat_bool = True
+            elif self.counters['repeat_counter'][0] > self.counters['repeat_counter'][1]:
+                self.counters['repeat_counter'] = [0,0]
+                repeat_bool = False
+        """
+
+        #update the local move accuracy; move:[miss count, total count]
+        if not repeat_bool: #We're not in repeats
+            self.counters['local_move_accuracy'][human_action][1] += 1 
+        #update the local move-dist
+        self.counters['local_move_dist'][human_action] += 1
+
+        #Agent correct
         if agent_action == human_action:
-            self.counters['win_count'] +=1
-            self.show_me_stale = 0
             self.counters['fail_streak_triple'][0] = 0
 
-            #reward_polarity:[positive count, negative count] of rewards.
-            # This condition accounts for when the agent corrects a wrong
-            # answer. We do not count that as right for our metric.
-            if self.counters['repeat_counter'][1] == 0: #We're not in repeats
+            if not repeat_bool: #We're not in repeats
                 self.counters['reward_polarity'][0] += 1
             self.counters['repeat_counter'] = [0,0]
+            
+            current_fail_rate = (self.total_move_accuracy[human_action][0]
+                                /self.total_move_accuracy[human_action][1])
+            
+            #bonus = np.interp(current_fail_rate, [0, 1], [0, 25])
+            #reward = 1.75 + bonus
             reward = 2
 
-        #Agent wrong. Let's check for repeats
+        #Agent wrong
         elif agent_action != human_action:
-            reward = -1
-            self.counters['local_move_accuracy'][human_action][0] +=1
             #reward_polarity:[positive count, negative count] of rewards.
-            self.counters['reward_polarity'][1] += 1
+            if not repeat_bool: #We're not in repeats
+                self.counters['local_move_accuracy'][human_action][0] +=1
+                self.counters['reward_polarity'][1] += 1
             
-            #Here we handle repeats
-            #Repeats trigger if our accuracy is decent
-            #if (self.counters['accuracy_que_avg'] > accuracy_target 
-            #    and self.counters['game_count'] > 0):
-            if 1: #bypass above, always repeat
-                fail_rate = (self.total_move_accuracy[human_action][0]
-                             /self.total_move_accuracy[human_action][1])
-                
-                #trigger repeat sequence; repeat_counter= [current repeat, repeat limit]
-                if fail_rate >= mistake_tolerance:
-                    reward = -2
+            current_fail_rate = (self.total_move_accuracy[human_action][0]/
+                                self.total_move_accuracy[human_action][1])
+            
 
-                    #"""determine how many repeats is limit:
-                    self.counters['repeat_counter'][1] = round(fail_rate*repeat_max)
+            #bonus = np.interp(current_fail_rate, [0, 1], [0, 25])
+            #reward = -1 * (1.75 + bonus)
+            reward = -2
 
-                    if human_action == 1: #powerup is underrepresented in the dataset
-                        self.counters['repeat_counter'][1] = round(fail_rate*repeat_max)*100
 
-                    #now handle the repeats
-                    self.counters['repeat_counter'][0] += 1
-                    if self.counters['repeat_counter'][0] <= self.counters['repeat_counter'][1]:
-                        repeat_bool = True
-                    elif self.counters['repeat_counter'][0] > self.counters['repeat_counter'][1]:
-                        self.counters['repeat_counter'] = [0,0]
-                        repeat_bool = False
-                    #"""
+        if human_action == 0 and repeat_bool:
+            print('SOMETHING IS WRONG')
 
         #handle the failstreak triple [current, session, overall]
+        # (for tracking pusposes)
         self.counters['fail_streak_triple'][0] += 1 #incriment the current failstreak
         if self.counters['fail_streak_triple'][0] > self.counters['fail_streak_triple'][1]: #Current>Sesssion
             self.counters['fail_streak_triple'][1] = self.counters['fail_streak_triple'][0]
@@ -1011,6 +1049,7 @@ class ModelTrain():
         #mode: save/load'
         #Pickle is used for counters because deque is not compatible
         #with JSON
+        os.chdir(self.home_dir)
 
         if mode == 'save':
 

@@ -87,14 +87,14 @@ class ScreenGrab():
             img = ~img #invert image if we're going the wrong way.
         
         
-        #"""pre process.
+        """pre process.
         mean1= np.mean([0.485, 0.456, 0.406])
         mean = np.array([mean1])
         std1 = np.mean([0.229, 0.224, 0.225])
         std = np.array([std1])
         img = std * img + mean
         img = np.clip(img, 0, 1)
-        #"""
+        """
         
         img = np.reshape(img, (self.xy, self.xy, 1))
         return img
@@ -669,13 +669,14 @@ class ScreenGrab():
         #cv2.imshow("cv2screen", image)
         #cv2.waitKey(1)
 
-        #Normalize image.
+        """Normalize image.
         mean1= np.mean([0.485, 0.456, 0.406])
         mean = np.array([mean1])
         std1 = np.mean([0.229, 0.224, 0.225])
         std = np.array([std1])
         image = std * image + mean
         image = np.clip(image, 0, 1)
+        """
 
         image = np.reshape(image, (self.xy, self.xy, 1))
         return image

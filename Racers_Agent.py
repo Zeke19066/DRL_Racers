@@ -37,7 +37,8 @@ class CNNActor(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, 4, 2)
         self.conv3 = nn.Conv2d(64, 64, 3, 1)
 
-        self.linear = nn.Linear(self.flat_size, 512)
+        self.linear_1 = nn.Linear(self.flat_size, 512)
+        self.linear_2 = nn.Linear(512, 512)
         self.actor_linear = nn.Linear(512, num_actions)
         self.home_dir = os.getcwd()
 
@@ -64,7 +65,8 @@ class CNNActor(nn.Module):
         out = F.relu(self.conv1(x))
         out = F.relu(self.conv2(out))
         out = F.relu(self.conv3(out))
-        out = self.linear(out.view(out.size(0), -1))
+        out = self.linear_1(out.view(out.size(0), -1))
+        out = self.linear_2(out)
         #This needs to be calculated manually for input img size change.
         #print(f'***Flattened Shape: {out.shape}***')
         return self.actor_linear(out)

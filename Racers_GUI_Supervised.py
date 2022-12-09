@@ -272,8 +272,9 @@ class CentralWidget(qtw.QWidget):
                         break
 
             #Update Metrics:
-            action =  self.metrics[0]
-            if action == self.metrics_last[0]:
+            action = self.metrics[0]
+            if (self.metrics[4] != self.metrics_last[4]
+                  and action == self.metrics_last[0]):
                 self.action_repeat_count += 1
             else: 
                 self.action_repeat_count = 0
@@ -283,9 +284,10 @@ class CentralWidget(qtw.QWidget):
             move_tracker_items = {0:0, 1:0, 2:0, 3:0, 4:0}
             for i in range(5):
                 #calculate resulting %
-                move_tracker_items[i]= str(round(self.metrics[21][i][0]/self.metrics[21][i][1]*100,2))#+"%"
-                
-            self.subtitlebar.setText(f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}')
+                move_tracker_items[i]= str(round(self.metrics[21][i][0]/self.metrics[21][i][1]*100,2))
+            
+            label = f' Learning Rate: {self.metrics[14]}      Game Batch: {self.metrics[18]}       Move Dist: {self.metrics[25]}'
+            self.subtitlebar.setText(label)
 
             self.last_move.setText(f' Action: {self.action_set[action]}({self.action_repeat_count})')
             self.reward_scan.setText(f' Reward Scan: {self.metrics[1]}')
